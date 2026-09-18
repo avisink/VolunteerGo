@@ -1,4 +1,4 @@
-# VolunteerGo
+# VolunteerGo 
 VolunteerGo is a **gamified volunteer matching platform** that connects volunteers with opportunities based on their **skills, interests, and location**.  
 It blends community service with **game-like elements** such as points, badges, and leaderboards to make volunteering more engaging and rewarding.
 
