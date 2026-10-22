@@ -73,7 +73,7 @@ All three processes are started independently and talk to each other over HTTP â
 
 Environment variables that matter (each service loads its own `.env`):
 - **VolunteerAPI**: `DATABASE_URL`, `PORT`, `FRONTEND_URL` (the only CORS origin allowed), `JWT_SECRET`, `OPENAI_API_KEY` (chat controller), `VITE_SENDGRID_API_KEY`. Firebase admin reads `firebase/serviceAccountKey.json` (path relative to cwd, so run from `VolunteerAPI/`) unless `NODE_ENV=production`, where it parses `FIREBASE_SERVICE_ACCOUNT` JSON instead.
-- **VolunteerUI**: `VITE_API_BASE_URL`, `VITE_SEARCH_URL` (VolunteerSearch base URL), `VITE_FIREBASE_*`, Google Maps/Geocode, LocationIQ, and Pexels keys.
+- **VolunteerUI**: `VITE_API_BASE_URL`, `VITE_SEARCH_URL` (VolunteerSearch base URL), `VITE_FIREBASE_*`, LocationIQ (city autocomplete), and Pexels keys. The Google Maps/Geocode vars are intentionally unset after a large bill: the `/map` page is a stretch feature (D-UI-001). Don't add Google keys back or introduce a paid maps API without asking; free alternatives are listed in CONTEXT.md.
 - **VolunteerSearch**: `ENV` (`production` switches to keyword-only scoring) and, confusingly, `VITE_API_BASE_URL` for the VolunteerAPI URL (defaults to `http://localhost:3000`). CORS origins are hardcoded in `main.py` (`localhost:5173` and the Render deployment).
 
 The root `package.json` is a stray dependency list, not a workspace â€” don't install or build from the repo root.

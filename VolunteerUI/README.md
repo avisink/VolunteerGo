@@ -38,8 +38,8 @@ Loaded from `VolunteerUI/.env`. Vite only exposes variables that start with `VIT
 | `VITE_API_BASE_URL` | VolunteerAPI base URL |
 | `VITE_SEARCH_URL` | VolunteerSearch base URL (`POST /search`) |
 | `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` | Firebase client config (`src/firebase.js`) |
-| `VITE_GOOGLE_MAPS_API_KEY`, `VITE_GOOGLE_MAP_ID`, `VITE_GOOGLE_GEOCODE_API_KEY` | Map page and geocoding |
-| `VITE_LOCATIONIQ_ACCESS_TOKEN` | Location lookups |
+| `VITE_GOOGLE_MAPS_API_KEY`, `VITE_GOOGLE_MAP_ID`, `VITE_GOOGLE_GEOCODE_API_KEY` | Map page (stretch feature). **Intentionally unset**, see [D-UI-001](#d-ui-001-keep-the-map-page-as-a-stretch-feature-with-google-maps-keys-removed) |
+| `VITE_LOCATIONIQ_ACCESS_TOKEN` | City autocomplete (`CitySearch`) |
 | `VITE_PEXELS_API_KEY` | Opportunity images (`src/utils/getImage.js`) |
 | `VITE_CLERK_PUBLISHABLE_KEY` | **Required at startup** even though Clerk is unused, see [Known issues](#known-issues) |
 
@@ -82,7 +82,7 @@ All routes are defined in one flat list in `components/App/App.jsx`. Each one po
 | `/leaderboard` | `Leaderboard` | Points ranking |
 | `/saved` | `SavedPage` | Saved opportunities |
 | `/opportunity/:id` | `OpportunityPage` | Opportunity detail and apply |
-| `/map` | `LocationPage` | Map view |
+| `/map` | `LocationPage` | Map view. Stretch feature, not linked in the nav, no API keys (D-UI-001) |
 
 ## State and data flow
 
@@ -101,7 +101,7 @@ Network calls use a mix of `fetch` and `axios`.
 
 ## Authentication
 
-Firebase Authentication (`firebase/auth`) is the only auth system in use (see [KEY_DECISIONS.md](../KEY_DECISIONS.md#auth-firebase-is-canonical-not-clerk)). After sign-in, `useAuth` provides the Firebase ID token, and components send it as `Authorization: Bearer <token>` to the API routes that require it.
+Firebase Authentication (`firebase/auth`), **email/password sign-in only**, is the only auth system in use (see [KEY_DECISIONS.md](../KEY_DECISIONS.md#auth-firebase-is-canonical-not-clerk)). After sign-in, `useAuth` provides the Firebase ID token, and components send it as `Authorization: Bearer <token>` to the API routes that require it.
 
 ## Testing
 
@@ -127,4 +127,22 @@ These were in place before 2026-10-22, and their rationale wasn't written down. 
 - **Firebase Authentication** on the client. See [KEY_DECISIONS.md](../KEY_DECISIONS.md#auth-firebase-is-canonical-not-clerk).
 - **Search goes straight from the UI to VolunteerSearch** instead of through VolunteerAPI. Rationale not documented.
 
-_No new UI decisions have been made yet. The next one gets ID `D-UI-001`._
+### D-UI-001: Keep the map page as a stretch feature, with Google Maps keys removed
+
+- **Date:** 2026-10-22
+- **Status:** Accepted
+- **Context:** The `/map` page (`LocationPage`, `MapSearch`, `utils/loadGoogleMaps.js`) uses the Google Maps JavaScript API, Places Autocomplete, and the Google Geocoding API. It geocodes **every opportunity's address on every page load**, so calls grow with opportunities × visits, and the project was billed about **$800**. The nav links were already commented out, but the route still works if visited directly. The keys were in `VITE_` variables, so they were public in the JS bundle.
+- **Options considered:**
+  1. *Delete the page, components and dependencies.* Rejected: the team wants the map back later as a stretch feature.
+  2. *Keep the code, remove the Google keys from the environment, and plan to rebuild on a free provider.* Chosen.
+  3. *Keep Google with fixes* (geocode once at seed time, restrict keys, budget cap). Rejected for now: still needs billing enabled on a Google Cloud project.
+- **Decision:** All map code and dependencies stay as they are. The Google variables (`VITE_GOOGLE_MAPS_API_KEY`, `VITE_GOOGLE_MAP_ID`, `VITE_GOOGLE_GEOCODE_API_KEY`) are removed from local `.env` files. The map is a **stretch feature**; when it's picked up, it should move to a free, no-card provider (see [CONTEXT.md](../CONTEXT.md#map--geocoding-alternatives-if-a-map-comes-back)) and get a new decision entry.
+- **Rationale:** Without keys, nothing can bill, and the work already done on the page is kept for reuse.
+- **Consequences / trade-offs:**
+  - `/map` is still reachable by URL, but without keys the map and geocoding just fail to load. Remove the route or show a placeholder if that becomes a problem.
+  - **Removing keys from `.env` doesn't revoke them.** They must be deleted in the Google Cloud project that owns them, since they were public in the deployed bundle.
+  - Lessons for the rebuild: geocode once and store `latitude`/`longitude` on `Opportunity`, cap usage, and never ship unrestricted paid keys in `VITE_` variables.
+  - City autocomplete (`CitySearch`) uses LocationIQ and is unaffected.
+- **SRS reference:** _TBD_
+
+_The next UI decision gets ID `D-UI-002`._
