@@ -105,7 +105,7 @@ Firebase Authentication (`firebase/auth`), **email/password sign-in only**, is t
 
 ## Testing
 
-There are no automated tests yet. `npm run lint` and `npm run build` are the only automated checks. Adding a test setup is planned alongside CI, and the choice will be recorded in the [Decision log](#decision-log).
+There are no automated tests yet. The `ui` job in `.github/workflows/ci.yml` runs on every PR: `npm run build` must pass, and `npm run lint` runs but **doesn't block** while the 36 existing lint errors remain (see [KEY_DECISIONS.md](../KEY_DECISIONS.md#ci-github-actions-one-job-per-service)). Adding component tests is a future decision for this log.
 
 ## Known issues
 

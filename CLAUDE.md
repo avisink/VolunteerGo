@@ -8,7 +8,7 @@ VolunteerGo is a gamified volunteer-matching platform with three independently-r
 
 - **`VolunteerUI/`** — React 19 + Vite frontend. Full docs: [VolunteerUI/README.md](./VolunteerUI/README.md).
 - **`VolunteerAPI/`** — Node/Express REST API, the system of record (PostgreSQL via Prisma). Full docs: [VolunteerAPI/README.md](./VolunteerAPI/README.md).
-- **`VolunteerSearch/`** — Python FastAPI service that does AI-powered opportunity search/recommendations.
+- **`VolunteerSearch/`** — Python FastAPI service that does AI-powered opportunity search/recommendations. Full docs: [VolunteerSearch/README.md](./VolunteerSearch/README.md).
 
 There is no root build; each service has its own `package.json`/`requirements.txt` and must be installed and run separately.
 
@@ -22,7 +22,7 @@ This repo is also a software engineering class project, so its documentation is 
 Every decision made while working in this repo must be documented in detail **in the same change that makes it**. This includes design and architecture choices, tooling, libraries, test strategy, CI, conventions, and deliberate "we chose not to do X" calls. Treat documentation as part of finishing the task, not a follow-up.
 
 **Where it goes:**
-- **Decisions about one service** go in the **Decision log** section of that service's README ([VolunteerAPI/README.md](./VolunteerAPI/README.md), [VolunteerUI/README.md](./VolunteerUI/README.md)). Give each one the next ID (`D-API-NNN` / `D-UI-NNN`).
+- **Decisions about one service** go in the **Decision log** section of that service's README ([VolunteerAPI/README.md](./VolunteerAPI/README.md), [VolunteerUI/README.md](./VolunteerUI/README.md), [VolunteerSearch/README.md](./VolunteerSearch/README.md)). Give each one the next ID (`D-API-NNN` / `D-UI-NNN` / `D-SEARCH-NNN`).
 - **Decisions that span services** (CI, repo layout, auth across services, shared conventions) go in [KEY_DECISIONS.md](./KEY_DECISIONS.md).
 - **Quirks, gotchas, and open questions** that aren't decisions go in [CONTEXT.md](./CONTEXT.md).
 
@@ -66,7 +66,14 @@ npx jest -t "returns 404"                  # tests matching a name
 cd VolunteerSearch
 pip install -r requirements.txt
 uvicorn main:app --reload   # dev server, default http://localhost:8000
+
+pip install -r requirements-test.txt   # light test deps (no PyTorch)
+pytest -q                               # tests; force ENV=production (keyword path), stub the API call
+pytest tests/test_search.py -k stop     # tests matching a name
 ```
+
+### CI
+`.github/workflows/ci.yml` (GitHub Actions) runs on every PR and on pushes to `main`, with three parallel jobs and no secrets: `api` (`npm test`), `ui` (lint, non-blocking, then `npm run build`), and `search` (`pytest`). When adding tests or changing how a service is built, make sure its CI job still covers it. Rationale is in KEY_DECISIONS.md.
 
 ### Running the full stack locally
 All three processes are started independently and talk to each other over HTTP — run each `dev`/`uvicorn` command above in its own terminal. `VolunteerSearch` needs `VolunteerAPI` to be running so it can fetch `/opportunities` on startup.

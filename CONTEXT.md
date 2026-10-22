@@ -39,7 +39,7 @@ The map page is a stretch feature: its code is kept, but its Google keys are rem
 
 ## Known quirks
 
-- **`VolunteerUI` lint fails on existing code**: `npm run lint` reports 36 errors and 7 warnings (as of 2026-10-22), none from recent changes. A CI lint step will fail until these are fixed or the rules are relaxed. Decide which when setting up CI.
+- **`VolunteerUI` lint fails on existing code**: `npm run lint` reports 36 errors and 7 warnings (as of 2026-10-22), none from recent changes. CI runs lint as **non-blocking** until they're fixed (KEY_DECISIONS.md, CI entry). Breakdown: 29 `no-unused-vars`, 5 `react-refresh/only-export-components`, 2 `no-empty`, plus 8 `react-hooks/exhaustive-deps` warnings. Once clean, remove `continue-on-error` from the `ui` job.
 - **`VITE_CLERK_PUBLISHABLE_KEY` is required even though Clerk is unused**: `VolunteerUI/src/main.jsx` throws `Missing Publishable Key` at startup without it, so the UI won't render. Set any placeholder value locally. Removing the check counts as touching Clerk/auth wiring, so ask first (KEY_DECISIONS.md).
 - **`Chat` field naming mismatch**: `VolunteerAPI/chatModel/chatModel.js` reads/writes `conversationID` in its Prisma calls, but the `Chat` model in `prisma/schema.prisma` defines the field as `conversationId`. Verify which is actually correct (or whether this is silently broken) before touching chat persistence.
 - **`@clerk/*` packages are unused**: they're listed in `package.json` for both `VolunteerAPI` and `VolunteerUI`, but nothing imports them (only the leftover env-var check in `main.jsx` remains, see above) — Firebase is the real auth system. See KEY_DECISIONS.md.

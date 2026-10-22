@@ -1,0 +1,9 @@
+# Lightweight deps for running the test suite with ENV=production (keyword
+# scoring only), so CI doesn't install sentence-transformers/PyTorch.
+# See README.md, decision D-SEARCH-001.
+fastapi
+requests
+numpy
+scikit-learn
+httpx2
+pytest

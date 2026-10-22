@@ -1,0 +1,74 @@
+# Runs on every PR and on pushes to main. One job per service so a failure
+# points straight at the service that broke. Decisions behind this file are
+# recorded in KEY_DECISIONS.md ("CI: GitHub Actions, one job per service").
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: VolunteerAPI tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: VolunteerAPI
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: VolunteerAPI/package-lock.json
+      # Tests mock Prisma and Firebase, so no generated client, DB or secrets
+      # are needed; skipping install scripts keeps installs fast and safer.
+      - run: npm ci --ignore-scripts
+      - run: npm test
+
+  ui:
+    name: VolunteerUI lint + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: VolunteerUI
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: VolunteerUI/package-lock.json
+      - run: npm ci --ignore-scripts
+      # Non-blocking until the existing lint errors are cleaned up (see
+      # CONTEXT.md). Remove continue-on-error once `npm run lint` is clean.
+      - name: Lint (non-blocking)
+        run: npm run lint
+        continue-on-error: true
+      - run: npm run build
+
+  search:
+    name: VolunteerSearch tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: VolunteerSearch
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: VolunteerSearch/requirements-test.txt
+      # requirements-test.txt skips sentence-transformers/PyTorch; tests run
+      # the keyword-only (ENV=production) path.
+      - run: pip install -r requirements-test.txt
+      - run: pytest -q
