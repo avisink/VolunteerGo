@@ -15,11 +15,17 @@ Add new entries above the template at the bottom, using the same format.
 ---
 
 <!--
-Template for new entries:
+Template for new entries (repo-wide decisions; per-service decisions go in that service's README Decision log, see CLAUDE.md):
 
 ## <short title>
 
+- **Date:** YYYY-MM-DD
+- **Status:** Accepted | Superseded by <title/ID>
+- **Context:** the problem or situation that forced a decision
+- **Options considered:** each alternative, with why it was or wasn't chosen
 - **Decision:** what was decided
-- **Why:** the reasoning, if known (say "unknown/not documented" if it isn't)
-- **Constraint for Claude:** what this means for future changes — what to do, and what not to do without asking first
+- **Why:** the reasoning (say "unknown/not documented" if it isn't known)
+- **Consequences:** trade-offs, what this rules out, follow-up work
+- **SRS reference:** related requirement(s), if any
+- **Constraint for Claude:** what this means for future changes: what to do, and what not to do without asking first
 -->
