@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node ./server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "seed": "npx prisma db seed",
     "dev": "nodemon ./server.js"
   },
@@ -36,6 +36,8 @@
     "react-geocode": "^2.0.1"
   },
   "devDependencies": {
-    "prisma": "^6.11.1"
+    "jest": "^30.5.2",
+    "prisma": "^6.11.1",
+    "supertest": "^7.3.1"
   }
 }
