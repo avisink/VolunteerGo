@@ -75,7 +75,7 @@ pytest tests/test_search.py -k stop     # tests matching a name
 ### CI
 `.github/workflows/ci.yml` (GitHub Actions) runs on every PR and on pushes to `main`, with three parallel jobs and no secrets: `api` (`npm test`), `ui` (`npm run lint`, where errors block and warnings don't, then `npm run build`), and `search` (`pytest`). When adding tests or changing how a service is built, make sure its CI job still covers it.
 
-A fourth job, `review`, runs an **advisory** Claude review on PRs only after the other three pass. It authenticates with the user's Claude subscription (`CLAUDE_CODE_OAUTH_TOKEN` secret, from `claude setup-token`) and skips without it. Its rubric is `.claude/skills/pr-review/SKILL.md`, which also runs locally as `/pr-review`. Change review criteria there. Rationale for both workflows is in KEY_DECISIONS.md.
+Automated PR review is **GitHub Copilot code review** (turned on by a repo ruleset), guided by `.github/copilot-instructions.md`. The full rubric is the `/pr-review` skill (`.claude/skills/pr-review/SKILL.md`), for local use. If you change one, change both. Don't add Claude-powered review jobs to CI. Rationale is in KEY_DECISIONS.md.
 
 ### Running the full stack locally
 All three processes are started independently and talk to each other over HTTP — run each `dev`/`uvicorn` command above in its own terminal. `VolunteerSearch` needs `VolunteerAPI` to be running so it can fetch `/opportunities` on startup.

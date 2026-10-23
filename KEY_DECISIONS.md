@@ -39,14 +39,14 @@ Add new entries above the template at the bottom, using the same format.
   - Node 24 and Python 3.13 are pinned in CI. Local versions differ (Node 26 / Python 3.14 on the user's machine), so keep the CI versions in line with whatever the deployment host uses once it's chosen.
   - Making the checks *required* before merging is a GitHub branch-protection setting (repo Settings → Branches), not something in this file.
 - **SRS reference:** _TBD_
-- **Constraint for Claude:** Keep the `api`, `ui` and `search` jobs free of secrets. The only approved exception is the `review` job (PR review entry below). Don't make lint warnings blocking or add path filters without asking. When adding tests to a service, make sure its CI job still runs them; update this entry if the job structure changes.
+- **Constraint for Claude:** Keep `ci.yml` free of secrets unless the user approves adding them. Don't make lint warnings blocking or add path filters without asking. When adding tests to a service, make sure its CI job still runs them; update this entry if the job structure changes.
 
 ---
 
 ## PR review: Claude-rated, advisory
 
 - **Date:** 2026-10-22
-- **Status:** Accepted
+- **Status:** **Superseded by "PR review: Copilot code review, Claude skill for local use"** (same day). The CI job was removed; the `/pr-review` skill is kept for local use.
 - **Context:** The user wanted every PR scanned and rated on risk and code quality, with suggestions for small improvements. The existing CI only says pass/fail, and this repo has rules a linter can't check, mainly the mandatory documentation rule in CLAUDE.md. The user also wanted the same review available locally before opening a PR.
 - **Options considered:**
   1. *Static tools only* (SonarCloud, CodeClimate, CodeQL). Good at metrics and known vulnerability patterns, but they can't judge risk in context, check the decision-log rule, or suggest fixes the way the user asked. They also need another account. Not chosen, but CodeQL could be added alongside later.
@@ -66,6 +66,33 @@ Add new entries above the template at the bottom, using the same format.
 - **SRS reference:** _TBD_ (quality assurance / process)
 - **History:** On 2026-10-22 this first shipped as a separate `pr-review.yml` that ran in parallel with CI and used an `ANTHROPIC_API_KEY`. The same day, the user asked for (1) the review to run only after the other checks pass, so it moved into `ci.yml` as a `needs:` job (a `workflow_run` trigger was rejected: it runs with secrets in the base repo's context even for fork PRs, and it doesn't show up as a check on the PR), and (2) a free option, so it moved to the subscription token. The "quick wins" section was also renamed **"quick fixes"**, as originally intended.
 - **Constraint for Claude:** Don't make this job blocking or required, don't widen its tool permissions to write or push, and don't change the trigger to `pull_request_target` without asking. Change review criteria in the skill file, not the workflow prompt.
+
+---
+
+## PR review: Copilot code review, Claude skill for local use
+
+- **Date:** 2026-10-22
+- **Status:** Accepted. Supersedes "PR review: Claude-rated, advisory".
+- **Context:** The Claude CI review (previous entry) would run on the user's Claude subscription token, which shares usage limits with their own Claude.ai and Claude Code use. The user doesn't want automated reviews eating into that. A per-token API key was already ruled out on cost.
+- **Options considered:**
+  1. *Keep the Claude `review` job* on the subscription token. Rejected: it draws on the same limits the user works with every day.
+  2. *Claude job on an API key, triggered only by a `review` label.* Rejected: still billed, and needs remembering to add the label.
+  3. *Non-LLM checks only* (a rules script, CodeQL, SonarQube Cloud). Free, but they can't give the quick-fix suggestions the user wants. Still possible as additions.
+  4. *GitHub Copilot code review*, automatically requested by a repository ruleset and guided by `.github/copilot-instructions.md`. **Chosen.** It uses the user's GitHub Copilot plan (likely free for students through GitHub Education), not Claude limits.
+- **Decision:**
+  - The `review` job is removed from `ci.yml`, which goes back to three secret-free jobs.
+  - `.github/copilot-instructions.md` is a condensed copy of the `/pr-review` rubric: a 1–5 scorecard (Risk, Correctness, Code quality, Tests, Docs), a verdict, findings, **Quick fixes**, and this repo's rules (documentation rule, Firebase-only auth, server-side points D-API-005, no Google Maps keys D-UI-001, service-specific checks). It's kept under the ~4,000 characters that Copilot code review reads.
+  - Copilot review is turned on by the user in GitHub: **Settings → Rules → Rulesets → New branch ruleset** targeting `main`, then enable **"Automatically request Copilot code review"** (optionally "Review new pushes"). It can't be turned on from a file in the repo.
+  - `.claude/skills/pr-review/SKILL.md` stays for **local, on-demand** reviews (`/pr-review [PR#]`). It only uses Claude when the user runs it.
+- **Why:** It's the closest automated match to what the user wanted, with no Claude usage and no per-run bill.
+- **Consequences:**
+  - **No "after CI passes" gating.** Copilot reviews when a PR opens (and on new pushes if enabled), whether or not the checks pass. The user asked for gating, but can't have it with this tool.
+  - **The format isn't guaranteed.** Copilot treats instructions as guidance and leaves normal review comments, so the scorecard may be partial or missing. Tighten the instructions file if it drifts.
+  - **Two copies of the rubric** (the skill and `copilot-instructions.md`) must be kept in sync by hand. The skill is the full version.
+  - Copilot code review uses the plan's monthly premium requests. Check the plan's allowance if the repo gets busy.
+  - `copilot-instructions.md` is also read by Copilot Chat and the Copilot coding agent in this repo, which is fine since the rules apply there too.
+- **SRS reference:** _TBD_ (quality assurance / process)
+- **Constraint for Claude:** Don't add AI-review jobs that use Claude tokens or API keys to CI without asking. When the review rubric changes, update **both** the skill and `.github/copilot-instructions.md`.
 
 ---
 

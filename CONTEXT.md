@@ -9,18 +9,18 @@ _Last updated 2026-10-22 (second session). Start here in a new session; overwrit
 **Where things stand**
 - Working branch: `context-setting` (the user prefers committing here and opening PRs from it). PRs go to the **fork's** `main`: `gh pr create -R avisink/VolunteerGo --base main`. Never target `ftl-pod/VolunteerGo`.
 - PRs #1–#3 are merged (context docs; API tests + READMEs + documentation rule; CI + auth/search tests).
-- **PR #4 (this session):** server-side points/levels (D-API-005), UI lint cleanup with blocking lint in CI (D-UI-002), the advisory Claude PR review (`review` job in `ci.yml` + `/pr-review` skill, KEY_DECISIONS.md), and the quick fixes from the first `/pr-review 4` run.
+- **PR #4 (this session):** server-side points/levels (D-API-005), UI lint cleanup with blocking lint in CI (D-UI-002), PR review via GitHub Copilot (`.github/copilot-instructions.md`) plus the local `/pr-review` skill (KEY_DECISIONS.md), and the quick fixes from the first `/pr-review 4` run.
 - Tests: VolunteerAPI has 26 Jest tests (`opportunities`, `auth`, `gamification`); VolunteerSearch has 12 pytest tests; VolunteerUI has none (lint must be error-free, then build).
 - Latest decision IDs: **D-API-005, D-UI-002, D-SEARCH-001**.
 
 **Decisions made in the second session**
 - D-API-005: points are awarded by the apply endpoint on the server (opportunity's `points`, default 10). The level is recomputed in the same transaction. `PUT /users/points` is gone. Apply now requires auth and must be for yourself.
 - D-UI-002: lint errors fixed (including a mousemove re-render storm in HomeHero and a dead user download in ProfilePage), `react-refresh` rule off for `contexts/`/`hooks/`, lint blocking in CI. 7 `exhaustive-deps` warnings left on purpose.
-- KEY_DECISIONS "PR review: Claude-rated, advisory": `review` job in `ci.yml` (runs after api/ui/search pass; subscription token) + `.claude/skills/pr-review/SKILL.md`, which ends with a **Quick fixes** section.
+- KEY_DECISIONS "PR review: Copilot code review, Claude skill for local use" (supersedes the same-day Claude CI job): Copilot reviews PRs using `.github/copilot-instructions.md`; `/pr-review` is local-only. The user doesn't want CI using their Claude limits. Both rubrics end with **Quick fixes** and must be kept in sync.
 - The user also has a **user-level `/skillify` skill** (`~/.claude/skills/skillify/`, not in this repo). It scans transcripts for asks made 3+ times and proposes parameterized skills.
 
 **Waiting on the user**
-- Turn on PR review: run `claude setup-token` locally and save the printed token as the **`CLAUDE_CODE_OAUTH_TOKEN` repo secret**. It uses the Claude subscription (no per-run bill) and skips without the secret. Watch the first real run: the action's auth and the sticky-comment step haven't run yet.
+- Turn on Copilot review: get Copilot (GitHub Education for students), then **Settings → Rules → Rulesets → New branch ruleset** on `main` → enable "Automatically request Copilot code review". Check whether the first review follows the scorecard format.
 - Creating a **new Firebase project** and a **Supabase** database (checklist under "Pending setup" below). When ready, Claude adds `directUrl` to `schema.prisma` (plus a decision entry), runs `prisma migrate deploy` + `node seed.js`, starts all three services to verify, and records the Supabase/hosting move in KEY_DECISIONS.md.
 - Deciding hosting for the API, search and frontend.
 - Optional: branch protection on `main` requiring the three `ci.yml` checks (not PR review, which is advisory).

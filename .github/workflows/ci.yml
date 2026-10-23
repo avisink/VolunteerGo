@@ -1,7 +1,7 @@
 # Runs on every PR and on pushes to main. One job per service so a failure
-# points straight at the service that broke, then (PRs only) an advisory Claude
-# review once all three pass. Decisions behind this file are recorded in
-# KEY_DECISIONS.md ("CI: GitHub Actions, one job per service" and "PR review").
+# points straight at the service that broke. Decisions behind this file are
+# recorded in KEY_DECISIONS.md ("CI: GitHub Actions, one job per service").
+# AI PR review is Copilot code review (a repo ruleset), not a job here.
 name: CI
 
 on:
@@ -71,66 +71,3 @@ jobs:
       # the keyword-only (ENV=production) path.
       - run: pip install -r requirements-test.txt
       - run: pytest -q
-
-  # Advisory Claude review: runs only on PRs, and only after api, ui and search all
-  # pass (a failing check gets fixed first, so the review never runs on a broken PR).
-  # Rubric: .claude/skills/pr-review/SKILL.md (also /pr-review locally). The only job
-  # here that uses a secret; it never fails on a low score. Decision: KEY_DECISIONS.md
-  # ("PR review: Claude-rated, advisory").
-  review:
-    name: Claude PR review (advisory)
-    needs: [api, ui, search]
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      pull-requests: write
-    env:
-      # Claude subscription token from `claude setup-token`: no per-token bill, but each
-      # run counts toward the plan's usage limits. Empty when the secret isn't set and on
-      # PRs from forks (GitHub withholds secrets there); every step is skipped then.
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      GH_TOKEN: ${{ github.token }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-    steps:
-      - name: Skip (no CLAUDE_CODE_OAUTH_TOKEN secret)
-        if: env.CLAUDE_CODE_OAUTH_TOKEN == ''
-        run: echo '::notice::PR review skipped. Run claude setup-token locally and add the token as a CLAUDE_CODE_OAUTH_TOKEN repository secret to enable it.'
-
-      - uses: actions/checkout@v5
-        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
-        with:
-          fetch-depth: 0 # the skill diffs against main
-
-      - name: Review with Claude
-        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
-        uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ github.token }}
-          display_report: true
-          prompt: |
-            Follow .claude/skills/pr-review/SKILL.md exactly, in CI mode, with arguments:
-            ${{ github.event.pull_request.number }} --out pr-review.md
-            Reviewed commit: ${{ github.event.pull_request.head.sha }}
-          # Read-only tools plus Write for the report file; --max-turns caps usage per run.
-          claude_args: >-
-            --model claude-opus-5-5
-            --max-turns 40
-            --allowedTools "Read,Glob,Grep,Write,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
-
-      # One comment per PR, updated in place on every push (found by its marker line).
-      - name: Post or update the review comment
-        if: env.CLAUDE_CODE_OAUTH_TOKEN != '' && hashFiles('pr-review.md') != ''
-        run: |
-          marker='<!-- volunteergo-pr-review -->'
-          grep -qF "$marker" pr-review.md || { printf '%s\n%s' "$marker" "$(cat pr-review.md)" > pr-review.md; }
-          repo="${{ github.repository }}"
-          id=$(gh api "repos/$repo/issues/$PR_NUMBER/comments" --paginate \
-                 --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)
-          if [ -n "$id" ]; then
-            gh api -X PATCH "repos/$repo/issues/comments/$id" -F body=@pr-review.md > /dev/null
-          else
-            gh pr comment "$PR_NUMBER" --body-file pr-review.md
-          fi

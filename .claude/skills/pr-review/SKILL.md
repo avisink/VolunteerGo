@@ -1,17 +1,16 @@
 ---
 name: pr-review
-description: Review a VolunteerGo pull request or branch and rate it on risk, code quality, tests and documentation, then list small, concrete improvements ("quick fixes"). Use when the user asks to review, rate, score or sanity-check a PR, a branch or the current changes before merging. Also run by the `review` job in CI.
+description: Review a VolunteerGo pull request or branch and rate it on risk, code quality, tests and documentation, then list small, concrete improvements ("quick fixes"). Use when the user asks to review, rate, score or sanity-check a PR, a branch or the current changes before merging. CI review uses GitHub Copilot with a condensed copy of this rubric in .github/copilot-instructions.md.
 argument-hint: "[PR number | branch | empty for current branch vs main] [--out <file>]"
 ---
 
 # PR review for VolunteerGo
 
 Review the change in `$ARGUMENTS` and produce **one** markdown report in the format below.
-This skill is used two ways, with the same rubric (KEY_DECISIONS.md → "PR review: Claude-rated, advisory"):
-
-- **Locally:** `/pr-review`, `/pr-review 7` or `/pr-review my-branch`. Print the report in chat.
-- **In CI:** the `review` job in `.github/workflows/ci.yml` (after the other checks pass) passes `<PR number> --out pr-review.md`. Write the report to that file
-  and nothing else; a later workflow step posts it as a single sticky PR comment. Don't post comments yourself.
+Usage: `/pr-review`, `/pr-review 7` or `/pr-review my-branch`. Print the report in chat. If the arguments include
+`--out <file>`, write the report to that file instead. Automated PR review is GitHub Copilot, which uses a condensed copy
+of this rubric in `.github/copilot-instructions.md` (KEY_DECISIONS.md → "PR review: Copilot code review"). **If you change the
+rubric here, update that file too.**
 
 The review is **advisory**: it never blocks a merge. Be accurate rather than harsh or flattering.
 
