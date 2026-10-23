@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: Review a VolunteerGo pull request or branch and rate it on risk, code quality, tests and documentation, then list small, concrete improvements ("quick wins"). Use when the user asks to review, rate, score or sanity-check a PR, a branch or the current changes before merging. Also run by the PR Review GitHub Actions workflow.
+description: Review a VolunteerGo pull request or branch and rate it on risk, code quality, tests and documentation, then list small, concrete improvements ("quick fixes"). Use when the user asks to review, rate, score or sanity-check a PR, a branch or the current changes before merging. Also run by the `review` job in CI.
 argument-hint: "[PR number | branch | empty for current branch vs main] [--out <file>]"
 ---
 
@@ -10,7 +10,7 @@ Review the change in `$ARGUMENTS` and produce **one** markdown report in the for
 This skill is used two ways, with the same rubric (KEY_DECISIONS.md → "PR review: Claude-rated, advisory"):
 
 - **Locally:** `/pr-review`, `/pr-review 7` or `/pr-review my-branch`. Print the report in chat.
-- **In CI:** `.github/workflows/pr-review.yml` passes `<PR number> --out pr-review.md`. Write the report to that file
+- **In CI:** the `review` job in `.github/workflows/ci.yml` (after the other checks pass) passes `<PR number> --out pr-review.md`. Write the report to that file
   and nothing else; a later workflow step posts it as a single sticky PR comment. Don't post comments yourself.
 
 The review is **advisory**: it never blocks a merge. Be accurate rather than harsh or flattering.
@@ -70,7 +70,7 @@ List real problems first, most severe first. Each one needs a `file:line`, what 
 ("a signed-in user can send `{points: 9999}` and…"), and a suggested fix. Label each **Blocking** or **Should fix**.
 If you're not sure something is a bug, say so and say what would confirm it. Don't pad the list. "No findings" is a fine result.
 
-## 5. Quick wins
+## 5. Quick fixes
 
 Then list **small improvements that make the code better without changing behaviour**: each one a few lines,
 safe, and local. Examples: remove an unused import or state variable, replace a duplicated formula with the shared helper,
@@ -106,10 +106,10 @@ Use exactly this shape (the CI step looks for the first line to find and update 
 ### Findings
 <numbered list, or "No findings.">
 
-### Quick wins
+### Quick fixes
 <bulleted list with diffs, or "None, nice and tidy.">
 
 <sub>Advisory review by Claude using `.claude/skills/pr-review`. It doesn't block merging. Reviewed commit `<short sha>`.</sub>
 ```
 
-In local mode, after the report, offer to apply the quick wins.
+In local mode, after the report, offer to apply the quick fixes.
