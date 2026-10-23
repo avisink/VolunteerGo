@@ -114,6 +114,7 @@ Add new entries above the template at the bottom, using the same format.
   - **Supabase pauses after ~7 days with no activity.** Restore it from the dashboard before demos.
   - `VITE_` variables are baked in at build time. Changing one in Render needs a redeploy of the UI.
   - Migrations run in the API's build command (`prisma migrate deploy`), because Render's pre-deploy command isn't available on the free plan. A failing migration fails the deploy.
+  - The API and search service are pinned to Render's **Oregon** region, because the Supabase project is in AWS us-west-2. Each API request makes several sequential queries, so the distance between server and database dominates response time. If the database moves, move the services with it.
   - Free-tier limits change often; these were checked on 2026-10-23.
 - **SRS reference:** _TBD_ (deployment / availability)
 - **Constraint for Claude:** Don't add paid services, or anything that needs a card on file, without asking. Keep `render.yaml` in sync when env vars, build commands or start commands change. Never commit secret values; they go in the Render dashboard.
