@@ -9,14 +9,14 @@ _Last updated 2026-10-22 (second session). Start here in a new session; overwrit
 **Where things stand**
 - Working branch: `context-setting` (the user prefers committing here and opening PRs from it). PRs go to the **fork's** `main`: `gh pr create -R avisink/VolunteerGo --base main`. Never target `ftl-pod/VolunteerGo`.
 - PRs #1–#3 are merged (context docs; API tests + READMEs + documentation rule; CI + auth/search tests).
-- **PR #4 (this session):** server-side points/levels (D-API-005), UI lint cleanup with blocking lint in CI (D-UI-002), and the advisory Claude PR review workflow + `/pr-review` skill (KEY_DECISIONS.md).
+- **PR #4 (this session):** server-side points/levels (D-API-005), UI lint cleanup with blocking lint in CI (D-UI-002), the advisory Claude PR review (`review` job in `ci.yml` + `/pr-review` skill, KEY_DECISIONS.md), and the quick fixes from the first `/pr-review 4` run.
 - Tests: VolunteerAPI has 26 Jest tests (`opportunities`, `auth`, `gamification`); VolunteerSearch has 12 pytest tests; VolunteerUI has none (lint must be error-free, then build).
 - Latest decision IDs: **D-API-005, D-UI-002, D-SEARCH-001**.
 
 **Decisions made in the second session**
 - D-API-005: points are awarded by the apply endpoint on the server (opportunity's `points`, default 10). The level is recomputed in the same transaction. `PUT /users/points` is gone. Apply now requires auth and must be for yourself.
 - D-UI-002: lint errors fixed (including a mousemove re-render storm in HomeHero and a dead user download in ProfilePage), `react-refresh` rule off for `contexts/`/`hooks/`, lint blocking in CI. 7 `exhaustive-deps` warnings left on purpose.
-- KEY_DECISIONS "PR review: Claude-rated, advisory": `.github/workflows/pr-review.yml` + `.claude/skills/pr-review/SKILL.md`.
+- KEY_DECISIONS "PR review: Claude-rated, advisory": `review` job in `ci.yml` (runs after api/ui/search pass; subscription token) + `.claude/skills/pr-review/SKILL.md`, which ends with a **Quick fixes** section.
 - The user also has a **user-level `/skillify` skill** (`~/.claude/skills/skillify/`, not in this repo). It scans transcripts for asks made 3+ times and proposes parameterized skills.
 
 **Waiting on the user**
