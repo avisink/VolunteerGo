@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const admin = require('../firebase/firebaseAdmin');
 const sgMail = require('@sendgrid/mail');
 const { getLevelFromPoints, pointsForOpportunity } = require('../lib/gamification');
+const { BADGES, awardBadges, badgesForApplication } = require('../lib/badges');
 sgMail.setApiKey(process.env.VITE_SENDGRID_API_KEY);
 
 exports.getAllUsers = async (req, res) => {
@@ -52,10 +53,11 @@ exports.getUserById = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { username, firebaseUid, name } = req.body;
+    const firebaseUid = req.user.uid; // from the token, never the body (D-API-007)
+    const { username, name } = req.body;
 
     // Basic required fields validation
-    if (!username  || !firebaseUid) {
+    if (!username) {
       return res.status(400).json({ error: "Missing required field!" });
     }
 
@@ -160,7 +162,9 @@ exports.onboarding = async (req, res) => {
       },
     });
 
-    res.json({ success: true, user });
+    const badgesEarned = await awardBadges(prisma, user.id, [BADGES.NEWCOMER]);
+
+    res.json({ success: true, user, badgesEarned });
   } catch (e) {
     console.error("Error saving user onboarding data:", e);
     res.status(500).json({ error: "Failed to save onboarding data" });
@@ -271,7 +275,7 @@ exports.getUserOppsById = async (req, res) => {
     }
 };
 
-// Apply to an opportunity. Points and level are worked out here, never sent by the client (D-API-005).
+// Apply to an opportunity. Points, level (D-API-005) and badges (D-API-006) are worked out here, never sent by the client.
 exports.AddOpportunity = async (req, res) => {
     try {
         const userId = Number(req.params.id);
@@ -303,11 +307,12 @@ exports.AddOpportunity = async (req, res) => {
                 level: user.level,
                 pointsAwarded: 0,
                 leveledUp: false,
+                badgesEarned: [],
             });
         }
 
         const pointsAwarded = pointsForOpportunity(opportunity);
-        const updatedUser = await prisma.$transaction(async (tx) => {
+        const { updatedUser, badgesEarned } = await prisma.$transaction(async (tx) => {
             const withPoints = await tx.user.update({
                 where : {id : userId},
                 data : {
@@ -315,11 +320,16 @@ exports.AddOpportunity = async (req, res) => {
                     points : {increment : pointsAwarded},
                 },
             });
-            return tx.user.update({
+            const updatedUser = await tx.user.update({
                 where : {id : userId},
                 data : {level : getLevelFromPoints(withPoints.points)},
                 include: { opportunities: true },
             });
+            const usersAhead = await tx.user.count({ where : {points : {gt : updatedUser.points}} });
+            const badgesEarned = await awardBadges(
+                tx, userId, badgesForApplication({ user, opportunity, usersAhead })
+            );
+            return { updatedUser, badgesEarned };
         });
 
         res.json({
@@ -329,6 +339,7 @@ exports.AddOpportunity = async (req, res) => {
             level: updatedUser.level,
             pointsAwarded,
             leveledUp: updatedUser.level > user.level,
+            badgesEarned,
         });
     } catch (error) {
         console.error("Error Adding Opportunity: ", error);
@@ -337,7 +348,12 @@ exports.AddOpportunity = async (req, res) => {
 }
 
 exports.sendApplicationConfirmation = async (req, res) => {
-  const { to, subject, text, html } = req.body;
+  // Always to the signed-in user's own address, so this can't be used to email anyone else (D-API-007).
+  const to = req.user.email;
+  const { subject, text, html } = req.body;
+  if (!to) {
+    return res.status(400).json({ error: 'Your account has no email address' });
+  }
   try {
     await sgMail.send({
       to,

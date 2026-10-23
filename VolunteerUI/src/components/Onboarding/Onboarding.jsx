@@ -4,7 +4,6 @@ import './Onboarding.css'
 import { useNavigate } from "react-router-dom";  
 import { useLeaderboard } from "../../contexts/LeaderboardContext"
 import { useProfile } from "../../contexts/ProfileContext";
-import badgeService from '../../utils/badgeService';
 import PopupPill from "../PopupPill/PopupPill";
 import BadgeModal from "../BadgeModal/BadgeModal";
 
@@ -191,15 +190,14 @@ const handleSubmit = async (e) => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Failed to save user");
 
-    // Call badge check and show modal if badge earned
-    await badgeService.checkNewcomerBadge(user.uid, (badge) => {
-      if (badge) {
-        setEarnedBadge(badge);
-      } else {
-        // No badge earned, navigate immediately
-        navigate("/profile");
-      }
-    });
+    // The API awards the Newcomer badge on first onboarding (VolunteerAPI D-API-006).
+    const [badge] = result.badgesEarned || [];
+    if (badge) {
+      setEarnedBadge(badge);
+    } else {
+      // No badge earned, navigate immediately
+      navigate("/profile");
+    }
 
     refreshLeaderboard();
     refreshProfile();

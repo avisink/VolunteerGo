@@ -1,0 +1,85 @@
+# Render Blueprint: all three services on Render's free tier (KEY_DECISIONS.md,
+# "Hosting: Render free tier + Supabase"). In Render: New → Blueprint → pick this repo.
+# `sync: false` values are secrets or URLs you type into the Render dashboard; they're
+# never committed. Service URLs aren't known until the first deploy, so fill those in
+# afterwards and redeploy (see CONTEXT.md, "Deploying to Render").
+services:
+  # VolunteerAPI (Express + Prisma). The database is Supabase, not Render.
+  - type: web
+    name: volunteergo-api
+    runtime: node
+    plan: free
+    rootDir: VolunteerAPI
+    # --include=dev: prisma (CLI) is a devDependency, and NODE_ENV=production would skip it.
+    # Migrations run here because Render's pre-deploy command isn't available on the free plan.
+    buildCommand: npm ci --include=dev && npx prisma generate && npx prisma migrate deploy
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production # makes firebaseAdmin.js read FIREBASE_SERVICE_ACCOUNT
+      - key: DATABASE_URL # Supabase transaction pooler, port 6543, ending ?pgbouncer=true
+        sync: false
+      - key: DIRECT_URL # Supabase session pooler, port 5432
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT # the whole service-account JSON
+        sync: false
+      - key: FRONTEND_URL # the volunteergo-ui URL, e.g. https://volunteergo-ui.onrender.com
+        sync: false
+      - key: ADMIN_UIDS # comma-separated Firebase UIDs allowed to edit opportunities/orgs/badges
+        sync: false
+      - key: VITE_SENDGRID_API_KEY
+        sync: false
+
+  # VolunteerSearch (FastAPI), keyword-only mode so it fits 512 MB.
+  - type: web
+    name: volunteergo-search
+    runtime: python
+    plan: free
+    rootDir: VolunteerSearch
+    buildCommand: pip install -r requirements-prod.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.13"
+      - key: VITE_API_BASE_URL # the volunteergo-api URL
+        sync: false
+      - key: FRONTEND_URL # the volunteergo-ui URL
+        sync: false
+
+  # VolunteerUI (static Vite build). Static sites are free and don't sleep.
+  # VITE_ values are baked in at build time: redeploy after changing them.
+  - type: web
+    name: volunteergo-ui
+    runtime: static
+    rootDir: VolunteerUI
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite # client-side routing: serve index.html for /profile, /search, ...
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_SEARCH_URL
+        sync: false
+      - key: VITE_FIREBASE_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: VITE_FIREBASE_PROJECT_ID
+        sync: false
+      - key: VITE_FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: VITE_FIREBASE_APP_ID
+        sync: false
+      - key: VITE_LOCATIONIQ_ACCESS_TOKEN
+        sync: false
+      - key: VITE_PEXELS_API_KEY
+        sync: false
+      - key: VITE_CLERK_PUBLISHABLE_KEY # unused but required by main.jsx; any placeholder works
+        value: unused

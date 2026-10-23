@@ -18,7 +18,7 @@ const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) =
   const [currentX, setCurrentX] = useState(0);
   const [, setCurrentY] = useState(0);
   const cardRef = useRef(null);
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, token } = useAuth();
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const { profile, setProfile } = useProfile();
   const prismaUserId = profile?.id;
@@ -139,7 +139,7 @@ const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) =
       const url = `${import.meta.env.VITE_API_BASE_URL}/users/${prismaUserId}/saved-opportunities/${isSaved ? "remove" : "add"}`;
       const method = "POST";
       const body = JSON.stringify({ opportunityId: oppId });
-      const headers = { "Content-Type": "application/json" };
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
       const res = await fetch(url, { method, headers, body });
 

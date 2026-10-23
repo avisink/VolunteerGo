@@ -1,4 +1,5 @@
 const prisma = require("../db/db"); 
+const { BADGES, awardBadges } = require("../lib/badges");
 
 const getUserFromFirebase= async (firebaseUid) => {
   const user = await prisma.user.findUnique({
@@ -149,7 +150,10 @@ exports.acceptFriendRequest = async (req, res) => {
       },
     });
 
-    res.json({ message: "Friend request accepted." });
+    // The accepting user earns the Connector badge (D-API-006).
+    const badgesEarned = await awardBadges(prisma, userId, [BADGES.CONNECTOR]);
+
+    res.json({ message: "Friend request accepted.", badgesEarned });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to accept friend request." });

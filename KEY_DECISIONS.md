@@ -96,6 +96,30 @@ Add new entries above the template at the bottom, using the same format.
 
 ---
 
+## Hosting: Render free tier + Supabase, all on the user's own accounts
+
+- **Date:** 2026-10-23
+- **Status:** Accepted
+- **Context:** The original deployment (Render web services, a Render Postgres database, and the `ftlcapstone` Firebase project) belongs to a teammate, and the Render database has expired. The user is moving every external service onto accounts they own, and wants **free** hosting for all three services. Render's free Postgres expires after about 30 days, so it can't hold the database long-term.
+- **Options considered:**
+  - *Database:* **Supabase free** (chosen: 500 MB Postgres, no expiry, but pauses after ~7 days without activity), Neon free (similar, also fine), Render free Postgres (rejected: expires after ~30 days).
+  - *API and search service:* **Render free web services** (chosen: no card needed, deploys from GitHub, the team already knows it; services sleep after 15 minutes idle and take ~1 minute to wake), Railway (rejected: only a one-time trial credit), Koyeb (rejected: one free service, and recent reports say it needs a card), Fly.io (rejected: no free tier for new accounts).
+  - *Frontend:* **Render static site** (chosen: free, doesn't sleep, same account and Blueprint as the other two), Vercel / Netlify / Cloudflare Pages (all free and fine; rejected only to keep everything in one place).
+  - *Auth:* a **new Firebase project** on the user's account (Spark plan, free). Email/password is the only sign-in method used.
+- **Decision:** One `render.yaml` Blueprint at the repo root defines `volunteergo-api` (Node), `volunteergo-search` (Python, `ENV=production`, `requirements-prod.txt`), and `volunteergo-ui` (static, with an SPA rewrite to `index.html`). The database is Supabase (VolunteerAPI D-API-008). Secrets and URLs are `sync: false` and set in the Render dashboard. The step-by-step setup is in CONTEXT.md.
+- **Why:** It's $0 with no card, everything (except the database and Firebase) lives in one dashboard, and it auto-deploys from `main`.
+- **Consequences:**
+  - **Cold starts:** after 15 idle minutes the API and search sleep. The first page load then waits up to about a minute (the search service also wakes the API, since it loads opportunities on startup). **Open the site a couple of minutes before a demo.**
+  - Render's free tier has ~750 instance hours a month per workspace, shared by both web services. Because they sleep when idle, a class project shouldn't run out.
+  - **Supabase pauses after ~7 days with no activity.** Restore it from the dashboard before demos.
+  - `VITE_` variables are baked in at build time. Changing one in Render needs a redeploy of the UI.
+  - Migrations run in the API's build command (`prisma migrate deploy`), because Render's pre-deploy command isn't available on the free plan. A failing migration fails the deploy.
+  - Free-tier limits change often; these were checked on 2026-10-23.
+- **SRS reference:** _TBD_ (deployment / availability)
+- **Constraint for Claude:** Don't add paid services, or anything that needs a card on file, without asking. Keep `render.yaml` in sync when env vars, build commands or start commands change. Never commit secret values; they go in the Render dashboard.
+
+---
+
 <!--
 Template for new entries (repo-wide decisions; per-service decisions go in that service's README Decision log, see CLAUDE.md):
 

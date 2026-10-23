@@ -13,7 +13,6 @@ import {
 import { GiThreeLeaves } from "react-icons/gi";
 import { IoLocationSharp } from "react-icons/io5";
 import axios from "axios";
-import badgeService from "../../utils/badgeService";
 import BadgeModal from "../BadgeModal/BadgeModal";
 
 function FriendsSection({ user, profile, token }) {
@@ -163,7 +162,9 @@ function FriendsSection({ user, profile, token }) {
             { requestId },
             { headers: { Authorization: `Bearer ${token}` } }
         );
-        await badgeService.checkConnectorBadge(user.uid, setBadgeEarned);
+        // The API awards the Connector badge on accept (VolunteerAPI D-API-006).
+        const [badge] = response.data.badgesEarned || [];
+        if (badge) setBadgeEarned(badge);
         return response.data;
 
         } catch (error) {

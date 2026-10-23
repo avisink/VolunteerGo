@@ -1,0 +1,7 @@
+# Production deps (ENV=production): keyword scoring only, so no
+# sentence-transformers/PyTorch. Fits a 512 MB free instance. See D-SEARCH-002.
+fastapi
+uvicorn
+requests
+numpy
+scikit-learn

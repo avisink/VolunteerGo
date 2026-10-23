@@ -4,8 +4,9 @@ const { getLevelFromPoints, pointsForOpportunity } = require("../lib/gamificatio
 // $transaction runs its callback against the same mock client, like Prisma's interactive transactions.
 jest.mock("../db/db", () => {
     const client = {
-        user: { findUnique: jest.fn(), update: jest.fn(), upsert: jest.fn() },
+        user: { findUnique: jest.fn(), update: jest.fn(), upsert: jest.fn(), count: jest.fn() },
         opportunity: { findUnique: jest.fn() },
+        badge: { findMany: jest.fn() },
     };
     client.$transaction = jest.fn((fn) => fn(client));
     return client;
@@ -22,6 +23,9 @@ const app = require("../app");
 beforeEach(() => {
     jest.clearAllMocks();
     mockVerifyIdToken.mockResolvedValue({ uid: "uid-1" });
+    // No badges in these tests; tests/badges.test.js covers them.
+    prisma.user.count.mockResolvedValue(1);
+    prisma.badge.findMany.mockResolvedValue([]);
 });
 
 describe("getLevelFromPoints", () => {

@@ -63,7 +63,7 @@ VolunteerUI/src/
 │   └── <Feature>/      # one folder per page or component (JSX + CSS)
 ├── contexts/           # OpportunityContext, ProfileContext, LeaderboardContext
 ├── hooks/useAuth.jsx   # AuthProvider / useAuth
-├── utils/              # badgeService, getImage (Pexels), loadGoogleMaps
+├── utils/              # getImage (Pexels), loadGoogleMaps
 └── data/opportunities.js   # static sample data, not imported anywhere
 ```
 
@@ -95,13 +95,13 @@ App-wide state lives in React Context. There's no Redux or other state library.
   - So stale data after a backend change is expected: clear `localStorage` or force a refetch.
 - **`ProfileProvider`**: loads the signed-in user with `GET /users/by-uid/:uid`. On a 404 it creates the user (`POST /users`), then fetches again. Sends the Firebase token as a bearer token.
 - **`LeaderboardProvider`**: `GET /users`, exposes `refreshLeaderboard`.
-- **`badgeService`**: client-side badge checks. For example, it awards the "Newcomer Badge" through `POST /badges/give` if the user doesn't already have it.
+- **Badges** are awarded by the API (VolunteerAPI D-API-006). Apply, onboarding and friend accept return `badgesEarned`, which `BadgeModal` shows. The old client-side `badgeService` was removed.
 
 Network calls use a mix of `fetch` and `axios`.
 
 ## Authentication
 
-Firebase Authentication (`firebase/auth`), **email/password sign-in only**, is the only auth system in use (see [KEY_DECISIONS.md](../KEY_DECISIONS.md#auth-firebase-is-canonical-not-clerk)). After sign-in, `useAuth` provides the Firebase ID token, and components send it as `Authorization: Bearer <token>` to the API routes that require it.
+Firebase Authentication (`firebase/auth`), **email/password sign-in only**, is the only auth system in use (see [KEY_DECISIONS.md](../KEY_DECISIONS.md#auth-firebase-is-canonical-not-clerk)). After sign-in, `useAuth` provides the Firebase ID token, and components send it as `Authorization: Bearer <token>` to the API routes that require it. Every API write requires it since VolunteerAPI D-API-007, so any new `fetch`/`axios` call that changes data must include the header.
 
 ## Testing
 
@@ -113,7 +113,6 @@ There are no automated tests yet. The `ui` job in `.github/workflows/ci.yml` run
 - **Stale opportunities** from the `localStorage` cache (see above). This is by design, but can be surprising.
 - **`src/data/opportunities.js`** isn't imported anywhere.
 - **7 `react-hooks/exhaustive-deps` lint warnings** (FriendsPage, DraggableCard, Leaderboard, MapSearch, Onboarding, OpportunityGrid, ProfileContext). They're left on purpose, see [D-UI-002](#d-ui-002-clean-up-lint-and-make-it-blocking-in-ci).
-- **Badges are awarded from the client** (`utils/badgeService.js` calls `POST /badges/give`). Points moved to the server in VolunteerAPI D-API-005; badges haven't yet.
 
 ## Decision log
 

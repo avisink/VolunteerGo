@@ -4,7 +4,6 @@ import { BiSolidDonateHeart } from 'react-icons/bi';
 import { useAuth } from "../../hooks/useAuth";
 import { useProfile } from "../../contexts/ProfileContext";
 import { useLeaderboard } from "../../contexts/LeaderboardContext";
-import badgeService from '../../utils/badgeService';
 import BadgeModal from "../BadgeModal/BadgeModal";
 import './ApplyModal.css';
 import PopupPill from '../PopupPill/PopupPill';
@@ -73,7 +72,6 @@ function ApplyModal({ isOpen, onClose, opportunity, setShowApplied, setShowAnima
     let pointsAwarded = 0;
     try {
       // Apply. The API awards the points and recomputes the level (VolunteerAPI D-API-005).
-      const userOpportunitiesCount = profile.opportunities?.length || 0;
       const oppUrl = `${import.meta.env.VITE_API_BASE_URL}/users/${profile.id}/opportunities/add`;
       const oppRes = await fetch(oppUrl, {
         method: "PUT",
@@ -87,12 +85,8 @@ function ApplyModal({ isOpen, onClose, opportunity, setShowApplied, setShowAnima
       const result = await oppRes.json();
       pointsAwarded = result.pointsAwarded;
 
-      // Badge checks
-      await badgeService.checkFirstApplication(user.uid, userOpportunitiesCount, queueBadge);
-      if (opportunity.tags?.length) {
-        await badgeService.checkCategoryBadge(user.uid, opportunity.tags, queueBadge);
-      }
-      await badgeService.checkLeaderboardBadge(user.uid, queueBadge);
+      // Badges are awarded by the API as part of applying (VolunteerAPI D-API-006).
+      (result.badgesEarned || []).forEach(queueBadge);
 
       // Refresh user data
       await refreshProfile();

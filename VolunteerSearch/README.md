@@ -12,6 +12,7 @@ Prerequisites: Python 3.10+, and VolunteerAPI running (the service fetches `/opp
 cd VolunteerSearch
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt     # full deps, including sentence-transformers / PyTorch (large)
+# or, for keyword-only mode (ENV=production): pip install -r requirements-prod.txt
 uvicorn main:app --reload           # http://localhost:8000
 ```
 
@@ -21,8 +22,9 @@ uvicorn main:app --reload           # http://localhost:8000
 |---|---|---|
 | `ENV` | (unset) | `production` switches to **keyword-only scoring** and never loads the embedding model |
 | `VITE_API_BASE_URL` | `http://localhost:3000` | VolunteerAPI base URL. The `VITE_` prefix is a leftover from sharing the frontend's `.env`; the service is plain Python, not Vite. |
+| `FRONTEND_URL` | (unset) | Comma-separated frontend origins allowed by CORS, e.g. the deployed UI URL. `http://localhost:5173` is always allowed ([D-SEARCH-002](#d-search-002-production-requirements-file-and-configurable-cors)). |
 
-CORS origins are hardcoded in `main.py`: `http://localhost:5173` and `https://volunteergo.onrender.com`. Update them when the frontend moves to a new host.
+On Render, `render.yaml` at the repo root sets `ENV=production` and installs `requirements-prod.txt`.
 
 ## How it works
 
@@ -56,7 +58,6 @@ How they work:
 ## Known issues
 
 - **`/search` crashes when there are no opportunities.** `max(keyword_scores)` on an empty list raises `ValueError` and returns a 500. This happens whenever startup failed, for example because the API was down.
-- **`requests` isn't listed in `requirements.txt`.** It's imported directly, but only gets installed as a dependency of `sentence-transformers`. A production-only install would break. `requirements-test.txt` lists it explicitly.
 - **Stale cache:** `opportunity_vecs.pkl` is committed and never invalidated. If the opportunities change but the cache doesn't, vectors line up with the wrong opportunities in development mode.
 - Dependencies aren't pinned to versions in either requirements file.
 
@@ -90,3 +91,22 @@ These were in place before 2026-10-22, and their rationale wasn't written down.
   - Like `requirements.txt`, it isn't version-pinned, so a future library release could break CI unexpectedly.
   - `.pytest_cache/` and `.venv/` were added to `.gitignore`.
 - **SRS reference:** _TBD_
+
+### D-SEARCH-002: Production requirements file and configurable CORS
+
+- **Date:** 2026-10-23
+- **Status:** Accepted
+- **Context:** The service is being deployed to Render's free tier (KEY_DECISIONS.md, hosting entry), which has about 512 MB of RAM. `requirements.txt` installs `sentence-transformers` and PyTorch, which are several GB and wouldn't fit, and production (`ENV=production`) never uses them. CORS origins were hardcoded to the old team deployment (`volunteergo.onrender.com`), so the new frontend would be blocked. `requests` was also missing from `requirements.txt`.
+- **Options considered:**
+  1. *A separate `requirements-prod.txt` with only the keyword-path deps.* **Chosen.**
+  2. *Make `sentence-transformers` optional in `requirements.txt`* (extras or comments). Rejected: pip has no clean "optional" for a plain requirements file.
+  3. *Reuse `requirements-test.txt` in production.* Rejected: it includes pytest/httpx2 and lacks uvicorn, and the two files have different purposes.
+  4. For CORS: *read origins from `FRONTEND_URL`* (same name the API uses) vs *allow all origins* (`*`). Chose the env variable: `*` with `allow_credentials=True` isn't allowed by browsers anyway, and it would let any site call the service.
+- **Decision:** `requirements-prod.txt` = `fastapi`, `uvicorn`, `requests`, `numpy`, `scikit-learn`. CORS allows `http://localhost:5173` plus every comma-separated origin in `FRONTEND_URL` (trailing slashes stripped). `requests` added to `requirements.txt`.
+- **Rationale:** Small, fast deploys that match how production actually runs, and no code change needed when the frontend URL changes.
+- **Consequences / trade-offs:**
+  - Three requirements files to keep in step with `main.py`'s imports (full, prod, test).
+  - **Production has no embeddings.** Keyword-only search is what the deployed app uses, as before.
+  - Forgetting `FRONTEND_URL` on the host makes the deployed UI's search fail with a CORS error in the browser console.
+- **SRS reference:** _TBD_
+
