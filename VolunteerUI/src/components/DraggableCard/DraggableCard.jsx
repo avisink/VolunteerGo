@@ -23,7 +23,6 @@ const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) =
   const { profile, setProfile } = useProfile();
   const prismaUserId = profile?.id;
   const savedOpps = profile?.savedOpportunities?.map((opp) => opp.id) || [];
-  const [savingOppId] = useState(null);
   const [loadingSave, setLoadingSave] = useState({});
   const [imageUrl, setImageUrl] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
@@ -301,7 +300,7 @@ const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) =
                 {isSignedIn? handleSavedClick(e, opportunity.id) : setShowSave(true)}}
               disabled={!!loadingSave[opportunity.id]}
             >
-              {savingOppId === opportunity.id ? (
+              {loadingSave[opportunity.id] ? (
                 <div className="loading-spinner"></div>
                   ) : savedOpps.includes(opportunity.id) ? (
                   <BsBookmarkFill className="save-icon" />

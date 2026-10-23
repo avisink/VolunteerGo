@@ -10,7 +10,7 @@ _Last updated 2026-10-22 (second session). Start here in a new session; overwrit
 - Working branch: `context-setting` (the user prefers committing here and opening PRs from it). PRs go to the **fork's** `main`: `gh pr create -R avisink/VolunteerGo --base main`. Never target `ftl-pod/VolunteerGo`.
 - PRs #1–#3 are merged (context docs; API tests + READMEs + documentation rule; CI + auth/search tests).
 - **PR #4 (this session):** server-side points/levels (D-API-005), UI lint cleanup with blocking lint in CI (D-UI-002), and the advisory Claude PR review workflow + `/pr-review` skill (KEY_DECISIONS.md).
-- Tests: VolunteerAPI has 25 Jest tests (`opportunities`, `auth`, `gamification`); VolunteerSearch has 12 pytest tests; VolunteerUI has none (lint must be error-free, then build).
+- Tests: VolunteerAPI has 26 Jest tests (`opportunities`, `auth`, `gamification`); VolunteerSearch has 12 pytest tests; VolunteerUI has none (lint must be error-free, then build).
 - Latest decision IDs: **D-API-005, D-UI-002, D-SEARCH-001**.
 
 **Decisions made in the second session**
@@ -20,7 +20,7 @@ _Last updated 2026-10-22 (second session). Start here in a new session; overwrit
 - The user also has a **user-level `/skillify` skill** (`~/.claude/skills/skillify/`, not in this repo). It scans transcripts for asks made 3+ times and proposes parameterized skills.
 
 **Waiting on the user**
-- Add the **`ANTHROPIC_API_KEY` repo secret** to turn on PR review (it skips without it; costs API money per PR push).
+- Turn on PR review: run `claude setup-token` locally and save the printed token as the **`CLAUDE_CODE_OAUTH_TOKEN` repo secret**. It uses the Claude subscription (no per-run bill) and skips without the secret. Watch the first real run: the action's auth and the sticky-comment step haven't run yet.
 - Creating a **new Firebase project** and a **Supabase** database (checklist under "Pending setup" below). When ready, Claude adds `directUrl` to `schema.prisma` (plus a decision entry), runs `prisma migrate deploy` + `node seed.js`, starts all three services to verify, and records the Supabase/hosting move in KEY_DECISIONS.md.
 - Deciding hosting for the API, search and frontend.
 - Optional: branch protection on `main` requiring the three `ci.yml` checks (not PR review, which is advisory).

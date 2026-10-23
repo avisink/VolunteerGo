@@ -70,7 +70,7 @@ function ApplyModal({ isOpen, onClose, opportunity, setShowApplied, setShowAnima
     setShowApplied(true);
     setShowAnimation(true)
 
-
+    let pointsAwarded = 0;
     try {
       // Apply. The API awards the points and recomputes the level (VolunteerAPI D-API-005).
       const userOpportunitiesCount = profile.opportunities?.length || 0;
@@ -84,7 +84,8 @@ function ApplyModal({ isOpen, onClose, opportunity, setShowApplied, setShowAnima
         body: JSON.stringify({ opportunityId: opportunity.id }),
       });
       if (!oppRes.ok) throw new Error("Failed to update opportunities");
-      const { leveledUp } = await oppRes.json();
+      const result = await oppRes.json();
+      pointsAwarded = result.pointsAwarded;
 
       // Badge checks
       await badgeService.checkFirstApplication(user.uid, userOpportunitiesCount, queueBadge);
@@ -97,7 +98,7 @@ function ApplyModal({ isOpen, onClose, opportunity, setShowApplied, setShowAnima
       await refreshProfile();
       await refreshLeaderboard();
 
-      if (leveledUp) {
+      if (result.leveledUp) {
         setShouldLevelUp(true);
       }
       // Confirmation email
@@ -134,7 +135,10 @@ function ApplyModal({ isOpen, onClose, opportunity, setShowApplied, setShowAnima
       setApplyLoading(false);
     }
 
-    window.dispatchEvent(new CustomEvent("showPointsGif"));
+    // Only celebrate points that were actually awarded (not on failure or a re-apply).
+    if (pointsAwarded > 0) {
+      window.dispatchEvent(new CustomEvent("showPointsGif"));
+    }
 
     if (message.trim()) {
       setMessage('');

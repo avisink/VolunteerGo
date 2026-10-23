@@ -4,7 +4,7 @@ const { getLevelFromPoints, pointsForOpportunity } = require("../lib/gamificatio
 // $transaction runs its callback against the same mock client, like Prisma's interactive transactions.
 jest.mock("../db/db", () => {
     const client = {
-        user: { findUnique: jest.fn(), update: jest.fn() },
+        user: { findUnique: jest.fn(), update: jest.fn(), upsert: jest.fn() },
         opportunity: { findUnique: jest.fn() },
     };
     client.$transaction = jest.fn((fn) => fn(client));
@@ -115,6 +115,24 @@ describe("PUT /users/:id/opportunities/add", () => {
 
         expect(res.status).toBe(400);
         expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    });
+});
+
+describe("POST /users/onboarding", () => {
+    test("ignores points and level sent by the client", async () => {
+        prisma.user.upsert.mockResolvedValue({ id: 1 });
+
+        const res = await request(app)
+            .post("/users/onboarding")
+            .set("Authorization", "Bearer t")
+            .send({ name: "Ayo", points: 9999, level: 50 });
+
+        expect(res.status).toBe(200);
+        const { update, create } = prisma.user.upsert.mock.calls[0][0];
+        for (const data of [update, create]) {
+            expect(data).not.toHaveProperty("points");
+            expect(data).not.toHaveProperty("level");
+        }
     });
 });
 

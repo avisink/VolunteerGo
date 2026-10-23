@@ -2,7 +2,6 @@ const prisma = require('../db/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const admin = require('../firebase/firebaseAdmin');
-const { connect } = require('../routes/userRoutes');
 const sgMail = require('@sendgrid/mail');
 const { getLevelFromPoints, pointsForOpportunity } = require('../lib/gamification');
 sgMail.setApiKey(process.env.VITE_SENDGRID_API_KEY);
@@ -145,8 +144,6 @@ exports.onboarding = async (req, res) => {
   } = req.body; // points and level are never taken from the client (D-API-005)
 
   try {
-    const existingUser = await prisma.user.findUnique({ where: { firebaseUid } });
-
     const user = await prisma.user.upsert({
       where: { firebaseUid },
       update: { name, username, skills, training, location, age, interests, avatarUrl },

@@ -148,10 +148,10 @@ How they work:
 
 - To test a 🔒 route, mock `firebaseAdmin.js` as `{ auth: () => ({ verifyIdToken: mockVerifyIdToken }) }`. Then make `mockVerifyIdToken` resolve to a fake decoded token (`{ uid: "..." }`) or reject. See `tests/auth.test.js`. The mock function's name must start with `mock` so Jest allows it inside `jest.mock()`.
 
-**Current coverage (25 tests):**
+**Current coverage (26 tests):**
 - `tests/opportunities.test.js`: `GET /opportunities` (list, keyword/city filters, 500 on DB error) and `GET /opportunities/:id` (found, 404).
 - `tests/auth.test.js`: `verifyFirebaseToken` via `PUT /users/:id/opportunities/add` (no header, non-Bearer header, unverifiable token → 401; a verified uid reaches the controller).
-- `tests/gamification.test.js`: the level curve, points per opportunity, and the apply endpoint (awards server-side points, ignores client-sent points/level, no double award, 403 for another user, 404 unknown opportunity, 400 missing id), plus `PUT /users/points` being gone.
+- `tests/gamification.test.js`: the level curve, points per opportunity, and the apply endpoint (awards server-side points, ignores client-sent points/level, no double award, 403 for another user, 404 unknown opportunity, 400 missing id), plus `PUT /users/points` being gone and `POST /users/onboarding` ignoring client points/level.
 
 To mock `prisma.$transaction`, make it call its callback with the mock client (see the top of `tests/gamification.test.js`).
 
