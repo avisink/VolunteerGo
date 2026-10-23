@@ -2,6 +2,41 @@
 
 Running notes on this codebase — quirks, gotchas, and things worth knowing that don't belong in `CLAUDE.md`'s architecture overview. This file is updated regularly as new things are found; newest entries go at the top of each section. If a note here turns into something Claude must actively enforce (not just be aware of), promote it to `KEY_DECISIONS.md`.
 
+## Current status / session handoff
+
+_Last updated 2026-10-22. Start here in a new session; overwrite this section as things change, don't append._
+
+**Where things stand**
+- Working branch: `context-setting` (the user prefers committing here and opening PRs from it). PRs go to the **fork's** `main`: `gh pr create -R avisink/VolunteerGo --base main`. Never target `ftl-pod/VolunteerGo`.
+- PR #1 (context docs) and PR #2 (API test suite, `app.js`/`server.js` split, READMEs, documentation rule) are **merged**.
+- **PR #3 is open:** GitHub Actions CI, API auth tests, VolunteerSearch tests, D-UI-001 docs, CI decision. All three CI jobs were green on its first run.
+- Tests: VolunteerAPI has 10 Jest tests (`tests/opportunities.test.js`, `tests/auth.test.js`); VolunteerSearch has 12 pytest tests; VolunteerUI has none (CI runs lint, non-blocking, then build).
+- The documentation rule in CLAUDE.md is mandatory: every decision gets a full entry (D-API / D-UI / D-SEARCH in service READMEs, repo-wide ones in KEY_DECISIONS.md). Latest IDs: **D-API-004, D-UI-001, D-SEARCH-001**.
+
+**Decisions made this session** (details in the decision logs)
+- D-API-001 to 004: split `app.js`/`server.js`; Jest + Supertest; mock Prisma and Firebase in tests; turn off morgan under `NODE_ENV=test`.
+- D-UI-001: the `/map` page is a **stretch feature**. Its code and dependencies stay, and the Google Maps/Geocode keys are removed (~$800 bill). Don't add Google keys back.
+- D-SEARCH-001: pytest on the keyword-only (`ENV=production`) path with a light `requirements-test.txt`.
+- KEY_DECISIONS.md: CI on GitHub Actions, one job per service, no secrets.
+
+**Waiting on the user** (full checklist under "Pending setup" below)
+- Creating a **new Firebase project** and a **Supabase** database on their own accounts. The user will say when they're ready, then Claude: adds `directUrl` to `schema.prisma` (plus a decision entry), runs `prisma migrate deploy` + `node seed.js`, starts all three services locally to verify, and records the Supabase/hosting move in KEY_DECISIONS.md.
+- Deciding hosting for the API, search and frontend (Supabase can't run the servers).
+- Optional: enable branch protection on `main` requiring the three CI checks (repo Settings → Branches).
+- Merging PR #3.
+
+**Suggested next tasks** (user hasn't picked yet)
+1. Compute points/levels on the server instead of trusting `PUT /users/points` from the client (API README → Known issues).
+2. Fix the 36 UI lint errors, then remove `continue-on-error` from the `ui` CI job.
+3. Supabase + Firebase setup (blocked on the user, see above).
+4. Smaller fixes noted in the READMEs: VolunteerSearch `/search` 500 when there are no opportunities; `requests` missing from `requirements.txt`; `npm run seed` misconfigured; unmounted chat route; unauthenticated write endpoints.
+5. Later: integration tests against a real Postgres in CI; UI component tests; rebuild the map on a free provider (alternatives below).
+
+**Environment notes for Claude**
+- The user's npm config blocks package install scripts (`allowScripts`). Don't approve them; tests don't need them. CI uses `npm ci --ignore-scripts`.
+- Local versions are Node 26 and Python 3.14; CI uses Node 24 and Python 3.13. For VolunteerSearch tests, make a venv outside the repo (or `.venv/`, which is gitignored) and run `pip install -r requirements-test.txt`.
+- Never print `.env` or key contents. Check variable names, lengths or formats only.
+
 ## Pending setup (waiting on the user)
 
 Status as of 2026-10-22. Key values were never printed or committed.
