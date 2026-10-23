@@ -2,12 +2,79 @@
 
 Running notes on this codebase — quirks, gotchas, and things worth knowing that don't belong in `CLAUDE.md`'s architecture overview. This file is updated regularly as new things are found; newest entries go at the top of each section. If a note here turns into something Claude must actively enforce (not just be aware of), promote it to `KEY_DECISIONS.md`.
 
+## Current status / session handoff
+
+_Last updated 2026-10-22. Start here in a new session; overwrite this section as things change, don't append._
+
+**Where things stand**
+- Working branch: `context-setting` (the user prefers committing here and opening PRs from it). PRs go to the **fork's** `main`: `gh pr create -R avisink/VolunteerGo --base main`. Never target `ftl-pod/VolunteerGo`.
+- PR #1 (context docs) and PR #2 (API test suite, `app.js`/`server.js` split, READMEs, documentation rule) are **merged**.
+- **PR #3 is open:** GitHub Actions CI, API auth tests, VolunteerSearch tests, D-UI-001 docs, CI decision. All three CI jobs were green on its first run.
+- Tests: VolunteerAPI has 10 Jest tests (`tests/opportunities.test.js`, `tests/auth.test.js`); VolunteerSearch has 12 pytest tests; VolunteerUI has none (CI runs lint, non-blocking, then build).
+- The documentation rule in CLAUDE.md is mandatory: every decision gets a full entry (D-API / D-UI / D-SEARCH in service READMEs, repo-wide ones in KEY_DECISIONS.md). Latest IDs: **D-API-004, D-UI-001, D-SEARCH-001**.
+
+**Decisions made this session** (details in the decision logs)
+- D-API-001 to 004: split `app.js`/`server.js`; Jest + Supertest; mock Prisma and Firebase in tests; turn off morgan under `NODE_ENV=test`.
+- D-UI-001: the `/map` page is a **stretch feature**. Its code and dependencies stay, and the Google Maps/Geocode keys are removed (~$800 bill). Don't add Google keys back.
+- D-SEARCH-001: pytest on the keyword-only (`ENV=production`) path with a light `requirements-test.txt`.
+- KEY_DECISIONS.md: CI on GitHub Actions, one job per service, no secrets.
+
+**Waiting on the user** (full checklist under "Pending setup" below)
+- Creating a **new Firebase project** and a **Supabase** database on their own accounts. The user will say when they're ready, then Claude: adds `directUrl` to `schema.prisma` (plus a decision entry), runs `prisma migrate deploy` + `node seed.js`, starts all three services locally to verify, and records the Supabase/hosting move in KEY_DECISIONS.md.
+- Deciding hosting for the API, search and frontend (Supabase can't run the servers).
+- Optional: enable branch protection on `main` requiring the three CI checks (repo Settings → Branches).
+- Merging PR #3.
+
+**Suggested next tasks** (user hasn't picked yet)
+1. Compute points/levels on the server instead of trusting `PUT /users/points` from the client (API README → Known issues).
+2. Fix the 36 UI lint errors, then remove `continue-on-error` from the `ui` CI job.
+3. Supabase + Firebase setup (blocked on the user, see above).
+4. Smaller fixes noted in the READMEs: VolunteerSearch `/search` 500 when there are no opportunities; `requests` missing from `requirements.txt`; `npm run seed` misconfigured; unmounted chat route; unauthenticated write endpoints.
+5. Later: integration tests against a real Postgres in CI; UI component tests; rebuild the map on a free provider (alternatives below).
+
+**Environment notes for Claude**
+- The user's npm config blocks package install scripts (`allowScripts`). Don't approve them; tests don't need them. CI uses `npm ci --ignore-scripts`.
+- Local versions are Node 26 and Python 3.14; CI uses Node 24 and Python 3.13. For VolunteerSearch tests, make a venv outside the repo (or `.venv/`, which is gitignored) and run `pip install -r requirements-test.txt`.
+- Never print `.env` or key contents. Check variable names, lengths or formats only.
+
 ## Pending setup (waiting on the user)
 
-- **Firebase service-account key not added yet (as of 2026-10-22).** `VolunteerAPI/firebase/serviceAccountKey.json` is missing locally, so `npm run dev` / `npm start` crash immediately with `ENOENT` from `firebase/firebaseAdmin.js`. The user will add the key and say when it's there. Until then, verify API changes with `npm test` (which mocks Firebase), not by starting the server. It's already gitignored (`VolunteerAPI/.gitignore`: `**/serviceAccountKey.json`); never commit it. Also: CI will need it supplied as a GitHub secret if any job starts the real server.
+Status as of 2026-10-22. Key values were never printed or committed.
+
+**Context:** this repo (`avisink/VolunteerGo`) is the user's own fork of the team project (`ftl-pod/VolunteerGo`). The original Firebase project (`ftlcapstone`), the Render deployments and database, and possibly other API accounts were set up by a teammate. The user is **moving every external service onto accounts they own**. Record that as a repo-wide decision in KEY_DECISIONS.md once the services are chosen.
+
+Services to recreate under the user's own accounts:
+
+- [ ] **Firebase (new project).** Email/password is the only sign-in method the code uses.
+  1. Create the project and add a **Web app**. Copy its config into `VolunteerUI/.env` (`VITE_FIREBASE_API_KEY`, `_AUTH_DOMAIN`, `_PROJECT_ID`, `_STORAGE_BUCKET`, `_MESSAGING_SENDER_ID`, `_APP_ID`). The old values there are also shifted by one line, so replace them all.
+  2. **Authentication → Sign-in method → enable Email/Password.** `localhost` is an authorized domain by default; add the deployed frontend domain later.
+  3. **Project settings → Service accounts → Generate new private key.** For local dev, save the downloaded JSON **as the file** `VolunteerAPI/firebase/serviceAccountKey.json` (currently 0 bytes). `firebaseAdmin.js` only reads `FIREBASE_SERVICE_ACCOUNT` from `.env` when `NODE_ENV=production`, and it must then be the whole JSON **on one line, wrapped in single quotes**. The value currently in `VolunteerAPI/.env` is multi-line, so dotenv only reads `{` and parsing fails.
+  4. Old Firebase users don't carry over. That's fine, because the database is being recreated too.
+- [ ] **Database: Supabase Postgres.** The old Render DB (`DATABASE_URL` in `VolunteerAPI/.env`) accepts TCP but closes every Postgres connection (Prisma `P1017`), so it's expired/suspended. Supabase hosts **only the database**, not the Express or FastAPI servers.
+  1. Create a project. Under **Connect → ORMs → Prisma**, copy the **transaction pooler** (port `6543`, append `?pgbouncer=true`) and the **session pooler** (port `5432`). Don't use the direct `db.<ref>.supabase.co` host: it's IPv6-only and fails on most home networks and on Render.
+  2. `VolunteerAPI/.env`: `DATABASE_URL=<transaction pooler>`, `DIRECT_URL=<session pooler>`. Then add `directUrl = env("DIRECT_URL")` to `prisma/schema.prisma` (needs a decision log entry).
+  3. `npx prisma migrate deploy`, then `node seed.js` (loads `opp_scraper/opp_scraper/opportunity_updated.json` plus badges). Users are recreated automatically on first sign-in (`ProfileContext` calls `POST /users` on a 404).
+  4. Supabase free projects **pause after ~7 days without activity**. Restore from the dashboard before demos.
+- [ ] **Hosting for the API, search service and frontend.** Supabase can't run these. Options: Render (free web services sleep when idle), Railway, Fly.io; the frontend also fits Vercel, Netlify or Cloudflare Pages. Until deployed, use local URLs: `VolunteerUI/.env` → `VITE_API_BASE_URL=http://localhost:3000`, `VITE_SEARCH_URL=http://localhost:8000`; `VolunteerAPI/.env` → `PORT=3000` (VolunteerSearch defaults to 3000; the current value is `5000`), `FRONTEND_URL=http://localhost:5173` (currently the Render site, which would block local CORS).
+- [ ] **SendGrid.** Working key verified, but check who owns the account. A new account needs a verified sender identity before it can send. The key should live only in `VolunteerAPI/.env` (it's also in `VolunteerUI/.env`, where nothing uses it).
+- [ ] **Pexels and LocationIQ.** Working keys verified; replace them if they belong to the teammate. Both have free tiers, and LocationIQ needs no card.
+- [ ] **OpenAI.** Only needed if the unmounted chat feature is revived.
+- [ ] **Google Maps / Geocode.** Don't recreate (D-UI-001). The old keys were removed from `VolunteerUI/.env` but **are still in `VolunteerAPI/.env`** (as `VITE_GOOGLE_*`, unused by API code). Whoever owns that Google Cloud project should delete the keys, because they were public in the deployed bundle and caused the ~$800 bill.
+
+## Map / geocoding alternatives (if a map comes back)
+
+The map page is a stretch feature: its code is kept, but its Google keys are removed (D-UI-001). When it's rebuilt, use something with no surprise billing:
+
+- **Geocoding: LocationIQ.** The project already has a working key (`VITE_LOCATIONIQ_ACCESS_TOKEN`). The free tier is 5,000 requests/day and needs no credit card, so it can't bill you. Its API is OpenStreetMap/Nominatim-compatible.
+- **Geocoding: Nominatim** (OpenStreetMap's public geocoder). Free with no key, but limited to 1 request/second and needs an identifying User-Agent. Fine for small scripts, not for per-page-view use.
+- **Map rendering: Leaflet + `react-leaflet` with OpenStreetMap tiles.** Free, no key, simple. OSM's tile policy discourages heavy traffic, which is fine at class-project scale.
+- **Map rendering: MapLibre GL JS** (open-source fork of Mapbox GL) with **OpenFreeMap** tiles (free, no key) or **MapTiler**'s free tier. Better looking and faster than Leaflet, with vector tiles.
+- **Mapbox:** generous free tier, but needs a card on file, so overage billing is possible. Avoid for the same reason as Google.
+- **Whatever is chosen, geocode once, not per view.** The old page geocoded every opportunity's address on every visit, which is what multiplies API calls. Store `latitude`/`longitude` on `Opportunity` when it's created or seeded and read them from the DB. Set usage caps or budget alerts on any paid key, and never put an unrestricted paid key in a `VITE_` variable (it's public).
 
 ## Known quirks
 
+- **`VolunteerUI` lint fails on existing code**: `npm run lint` reports 36 errors and 7 warnings (as of 2026-10-22), none from recent changes. CI runs lint as **non-blocking** until they're fixed (KEY_DECISIONS.md, CI entry). Breakdown: 29 `no-unused-vars`, 5 `react-refresh/only-export-components`, 2 `no-empty`, plus 8 `react-hooks/exhaustive-deps` warnings. Once clean, remove `continue-on-error` from the `ui` job.
 - **`VITE_CLERK_PUBLISHABLE_KEY` is required even though Clerk is unused**: `VolunteerUI/src/main.jsx` throws `Missing Publishable Key` at startup without it, so the UI won't render. Set any placeholder value locally. Removing the check counts as touching Clerk/auth wiring, so ask first (KEY_DECISIONS.md).
 - **`Chat` field naming mismatch**: `VolunteerAPI/chatModel/chatModel.js` reads/writes `conversationID` in its Prisma calls, but the `Chat` model in `prisma/schema.prisma` defines the field as `conversationId`. Verify which is actually correct (or whether this is silently broken) before touching chat persistence.
 - **`@clerk/*` packages are unused**: they're listed in `package.json` for both `VolunteerAPI` and `VolunteerUI`, but nothing imports them (only the leftover env-var check in `main.jsx` remains, see above) — Firebase is the real auth system. See KEY_DECISIONS.md.

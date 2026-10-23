@@ -146,7 +146,15 @@ How they work:
 - `jest.mock("../db/db", ...)` replaces the Prisma client with mock functions. Each test sets return values such as `prisma.opportunity.findMany.mockResolvedValue([...])` and can check the arguments the controller passed (see [D-API-003](#d-api-003-mock-prisma-and-firebase-in-route-tests)).
 - `jest.mock("../firebase/firebaseAdmin.js", ...)` is **required in every test file that loads `app.js`**. `userController.js` imports Firebase admin, which reads the key file as soon as it's imported.
 
-**Current coverage:** `GET /opportunities` (list, filters, 500 on DB error) and `GET /opportunities/:id` (found, 404). Everything else is untested so far.
+- To test a 🔒 route, mock `firebaseAdmin.js` as `{ auth: () => ({ verifyIdToken: mockVerifyIdToken }) }`. Then make `mockVerifyIdToken` resolve to a fake decoded token (`{ uid: "..." }`) or reject. See `tests/auth.test.js`. The mock function's name must start with `mock` so Jest allows it inside `jest.mock()`.
+
+**Current coverage (10 tests):**
+- `tests/opportunities.test.js`: `GET /opportunities` (list, keyword/city filters, 500 on DB error) and `GET /opportunities/:id` (found, 404).
+- `tests/auth.test.js`: `verifyFirebaseToken` via `PUT /users/points` (no header, non-Bearer header, unverifiable token → 401, verified uid passed to the controller) and the 400 for a missing `points`/`level`.
+
+Everything else is untested so far.
+
+**CI:** the `api` job in `.github/workflows/ci.yml` runs `npm test` on every PR (see [KEY_DECISIONS.md](../KEY_DECISIONS.md#ci-github-actions-one-job-per-service)).
 
 ## Known issues
 
@@ -155,6 +163,7 @@ These are also tracked in [CONTEXT.md](../CONTEXT.md).
 - **Chat is unreachable.** `routes/chatRoutes.js` is never mounted in `app.js`, and `chatModel.js` uses `conversationID` while the schema says `conversationId`.
 - **`npm run seed` probably doesn't work.** `package.json` has no `prisma.seed` setting, so `prisma db seed` has nothing to run. Use `node seed.js`.
 - **Most write endpoints have no auth.** Creating, updating and deleting opportunities, organizations and badges, `DELETE /users/:id`, and the save/apply routes all accept requests without a token.
+- **Points and levels are trusted from the client.** `PUT /users/points` writes whatever `points` and `level` the request body contains, so a signed-in user can set their own score. The server should calculate points (for example, when an application is accepted) and work out the level with the `level.js` formula.
 - **`optionalAuthenticateToken` uses a JWT secret, not Firebase,** so it can't validate the tokens the frontend actually sends. It isn't used on any route right now.
 
 ## Decision log
