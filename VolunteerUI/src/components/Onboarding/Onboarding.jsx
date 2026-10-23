@@ -4,13 +4,11 @@ import './Onboarding.css'
 import { useNavigate } from "react-router-dom";  
 import { useLeaderboard } from "../../contexts/LeaderboardContext"
 import { useProfile } from "../../contexts/ProfileContext";
-import badgeService from '../../utils/badgeService';
 import PopupPill from "../PopupPill/PopupPill";
 import BadgeModal from "../BadgeModal/BadgeModal";
 
 export default function Onboarding() {
   const { user, token, isLoaded } = useAuth();
-  const {profile} = useProfile();
   const navigate = useNavigate();  
   const [currentStep, setCurrentStep] = useState(1);
   const { refreshLeaderboard } = useLeaderboard();
@@ -32,7 +30,7 @@ export default function Onboarding() {
     interests: []
   });
 
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   // Fetch user data from API if user is logged in and data is loaded
   useEffect(() => {
@@ -130,20 +128,6 @@ const avatarUrls = [
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-    const handleArrayInput = (e) => {
-    const { name, value } = e.target;
-
-    const array = value
-        .split(",")
-        .map(item => item.trim())
-        .filter(item => item !== "");
-
-    setFormData(prev => ({
-        ...prev,
-        [name]: array
-    }));
-    };
-
     const handleInterestToggle = (interestId) => {
       setFormData(prev => ({
         ...prev,
@@ -206,15 +190,14 @@ const handleSubmit = async (e) => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Failed to save user");
 
-    // Call badge check and show modal if badge earned
-    await badgeService.checkNewcomerBadge(user.uid, (badge) => {
-      if (badge) {
-        setEarnedBadge(badge);
-      } else {
-        // No badge earned, navigate immediately
-        navigate("/profile");
-      }
-    });
+    // The API awards the Newcomer badge on first onboarding (VolunteerAPI D-API-006).
+    const [badge] = result.badgesEarned || [];
+    if (badge) {
+      setEarnedBadge(badge);
+    } else {
+      // No badge earned, navigate immediately
+      navigate("/profile");
+    }
 
     refreshLeaderboard();
     refreshProfile();

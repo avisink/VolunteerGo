@@ -1,5 +1,6 @@
 import './SavedPage.css';
 import { useProfile } from '../../contexts/ProfileContext';
+import { useAuth } from '../../hooks/useAuth';
 import RemoveModal from '../RemoveModal/RemoveModal';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
@@ -9,7 +10,8 @@ import { BsBookmark } from "react-icons/bs";
 
 function SavedPage() {
   const { profile, setProfile } = useProfile();
-  const [showModal, setShowModal] = useState(false);
+  const { token } = useAuth();
+  const [, setShowModal] = useState(false); // RemoveModal is commented out below
   const [oppToRemove, setOppToRemove] = useState(null);
   const [removing, setRemoving] = useState(false); // loading state
   const [smartSuggestions, setSmartSuggestions] = useState([]);
@@ -114,7 +116,7 @@ function SavedPage() {
       }`;
       const method = "POST";
       const body = JSON.stringify({ opportunityId: oppId });
-      const headers = { "Content-Type": "application/json" };
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
       const res = await fetch(url, { method, headers, body });
 
@@ -182,7 +184,7 @@ function SavedPage() {
     const url = `${import.meta.env.VITE_API_BASE_URL}/users/${profile.id}/saved-opportunities/remove`;
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ opportunityId: opportunity.id }),
     });
     if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);

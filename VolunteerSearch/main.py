@@ -10,6 +10,10 @@ from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 IS_PRODUCTION = os.getenv("ENV") == "production"
 API_BASE_URL = os.getenv("VITE_API_BASE_URL", "http://localhost:3000")
+# Frontend origins allowed by CORS: comma-separated FRONTEND_URL, plus local Vite (D-SEARCH-002).
+ALLOWED_ORIGINS = ["http://localhost:5173"] + [
+    origin.strip().rstrip("/") for origin in os.getenv("FRONTEND_URL", "").split(",") if origin.strip()
+]
 
 if not IS_PRODUCTION:
     from sentence_transformers import SentenceTransformer, util
@@ -74,7 +78,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://volunteergo.onrender.com", "http://localhost:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

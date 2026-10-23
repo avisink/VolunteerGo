@@ -137,7 +137,6 @@ useEffect(() => {
   }
 
   const {
-    username,
     name,
     avatarUrl,
     points,

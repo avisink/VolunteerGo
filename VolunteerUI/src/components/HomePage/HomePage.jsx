@@ -1,7 +1,7 @@
 import HomeHeader from "../HomeHeader/HomeHeader"
 import "./HomePage.css"
 import { useEffect, useState } from "react";
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import HomeHero from "../HomeHero/HomeHero";
 function HomePage() {
   const [orgs, setOrgs] = useState([]);

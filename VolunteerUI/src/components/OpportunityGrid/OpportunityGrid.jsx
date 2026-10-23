@@ -10,7 +10,7 @@ import { useOpportunity } from '../../contexts/OpportunityContext';
 import PopupPill from '../PopupPill/PopupPill';
 
 function OpportunityGrid({ searchResults, overrideOpportunities = null }) {
-  const { user, isSignedIn } = useAuth();
+  const { isSignedIn, token } = useAuth();
   const { profile, setProfile } = useProfile();
   const { opportunities, loading, fetchOpportunities } = useOpportunity();
 
@@ -85,7 +85,7 @@ function OpportunityGrid({ searchResults, overrideOpportunities = null }) {
       }`;
       const method = "POST";
       const body = JSON.stringify({ opportunityId: oppId });
-      const headers = { "Content-Type": "application/json" };
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
       const res = await fetch(url, { method, headers, body });
 
@@ -370,7 +370,6 @@ useEffect(() => {
         <ApplyModal
           isOpen={isApplyModalOpen}
           onClose={handleCloseModal}
-          applicant={user?.firstName || user?.fullName || "Anonymous"}
           opportunity={selectedOpportunity}
           setShowApplied={setShowApplied}
           setShowAnimation={setShowAnimation}

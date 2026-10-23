@@ -26,21 +26,97 @@ Add new entries above the template at the bottom, using the same format.
   4. *Separate workflow files per service with path filters* (only run a service's job when its folder changes). Deferred: faster, but path-filtered required checks are awkward to configure, and the suite is fast enough to run in full.
 - **Decision:** One workflow, `.github/workflows/ci.yml`, triggered on every pull request and on pushes to `main`, with three parallel jobs:
   - **`api`** (Node 24): `npm ci --ignore-scripts`, then `npm test`.
-  - **`ui`** (Node 24): `npm ci --ignore-scripts`, then `npm run lint` (**non-blocking** for now), then `npm run build`.
+  - **`ui`** (Node 24): `npm ci --ignore-scripts`, then `npm run lint` (blocking since 2026-10-22, D-UI-002; it was non-blocking at first), then `npm run build`.
   - **`search`** (Python 3.13): `pip install -r requirements-test.txt`, then `pytest`.
   - Read-only token permissions, npm/pip caching, and superseded runs on the same branch are cancelled.
 - **Why:**
   - Each job matches how that service is actually checked locally.
   - **No secrets are needed.** API tests mock Prisma and Firebase (D-API-003), and search tests stub the API call and skip the embedding model (D-SEARCH-001). This also means CI works on forks and PRs from contributors.
   - `--ignore-scripts` mirrors the local npm setup (install scripts are blocked there) and avoids running third-party install scripts in CI. Nothing the checks need depends on them.
-  - Lint is non-blocking because the UI already has 36 lint errors in existing code across 23 files. Blocking on them would make every PR red until a separate cleanup happens.
+  - Lint started out non-blocking because the UI had 36 lint errors in existing code across 23 files. Blocking on them would have made every PR red until a separate cleanup happened. That cleanup was VolunteerUI D-UI-002 (2026-10-22), and lint has been blocking since then, as the user approved.
 - **Consequences:**
   - CI doesn't exercise a real database, real Firebase, or the search service's embedding (development) mode. Those need integration tests later (a Postgres service container is the likely route).
-  - Lint regressions won't fail PRs until `continue-on-error` is removed. Follow-up: fix the existing lint errors, then make lint blocking.
   - Node 24 and Python 3.13 are pinned in CI. Local versions differ (Node 26 / Python 3.14 on the user's machine), so keep the CI versions in line with whatever the deployment host uses once it's chosen.
   - Making the checks *required* before merging is a GitHub branch-protection setting (repo Settings → Branches), not something in this file.
 - **SRS reference:** _TBD_
-- **Constraint for Claude:** Keep CI free of secrets unless the user approves adding them. Don't make lint blocking or add path filters without asking. When adding tests to a service, make sure its CI job still runs them; update this entry if the job structure changes.
+- **Constraint for Claude:** Keep `ci.yml` free of secrets unless the user approves adding them. Don't make lint warnings blocking or add path filters without asking. When adding tests to a service, make sure its CI job still runs them; update this entry if the job structure changes.
+
+---
+
+## PR review: Claude-rated, advisory
+
+- **Date:** 2026-10-22
+- **Status:** **Superseded by "PR review: Copilot code review, Claude skill for local use"** (same day). The CI job was removed; the `/pr-review` skill is kept for local use.
+- **Context:** The user wanted every PR scanned and rated on risk and code quality, with suggestions for small improvements. The existing CI only says pass/fail, and this repo has rules a linter can't check, mainly the mandatory documentation rule in CLAUDE.md. The user also wanted the same review available locally before opening a PR.
+- **Options considered:**
+  1. *Static tools only* (SonarCloud, CodeClimate, CodeQL). Good at metrics and known vulnerability patterns, but they can't judge risk in context, check the decision-log rule, or suggest fixes the way the user asked. They also need another account. Not chosen, but CodeQL could be added alongside later.
+  2. *A hosted AI review app* (CodeRabbit, Copilot code review, Claude Code's built-in GitHub review). Easy to set up, but the rubric lives outside the repo and can't be run locally the same way.
+  3. *`anthropics/claude-code-action` running a rubric that lives in the repo as a skill* (`.claude/skills/pr-review/SKILL.md`). **Chosen.**
+- **Decision:**
+  - The rubric lives in `.claude/skills/pr-review/SKILL.md`: scores from 1 to 5 for **Risk, Correctness, Code quality, Tests and Docs**, an overall verdict (ready / merge after fixes / needs work), findings with `file:line` and a concrete failure scenario, and up to ~5 **quick fixes** with small diffs. Run it locally as `/pr-review [PR# | branch]`.
+  - A `review` job in `.github/workflows/ci.yml` runs it on non-draft PRs, **only after `api`, `ui` and `search` have all passed** (`needs: [api, ui, search]`; if any fails, the review is skipped). It uses `anthropics/claude-code-action@v1`, model `claude-opus-5-5`, `--max-turns 40`, and **read-only tools** plus `Write` for the report file. A shell step then posts or updates **one sticky comment** per PR, found by its `<!-- volunteergo-pr-review -->` marker.
+  - It authenticates with the user's **Claude subscription**: a `CLAUDE_CODE_OAUTH_TOKEN` repository secret created with `claude setup-token`. Without it (including on PRs from forks, which GitHub doesn't give secrets to) every step is skipped with a notice, and the job still passes.
+  - **Advisory only:** it must not be added as a required check, and a bad score doesn't fail the job.
+- **Why:** The rubric is versioned with the code, so a PR can update the rules it's reviewed by. It's the same review locally and in CI. Gating on the other checks means the review never comments on a PR that's already broken, and it doesn't use subscription limits until the cheap checks are green. The three service jobs stay secret-free and reproducible; only the `review` job reads a secret.
+- **Consequences:**
+  - **Cost:** the first version used an `ANTHROPIC_API_KEY`, which bills per token. With Opus 5.5 and up to 40 turns that's roughly $0.30–$2 per push (an earlier estimate of "cents" was wrong). The user asked for a free option the same day, so it switched to the subscription token: no per-run bill, but **each run uses the plan's usage limits**, shared with the user's own Claude Code sessions. If that becomes a problem, switch `--model` to `claude-sonnet-5-5`, lower `--max-turns`, or trigger on a `review` label instead of every push. Non-LLM alternatives that were considered: a deterministic rules script (docs/tests/size checks), CodeQL and SonarQube Cloud (both free for public repos). They were rejected as the main reviewer because they can't produce the quick-fix suggestions the user wanted, but they could be added alongside.
+  - AI reviews can be wrong. Treat findings as suggestions, and tune the skill when it's consistently off.
+  - The key is a repo secret. Workflows triggered by `pull_request` from forks can't read it, which is intended (don't switch to `pull_request_target`, which would run fork code with secrets).
+  - Follow-up: the user has to add the secret (run `claude setup-token`, then repo Settings → Secrets and variables → Actions → `CLAUDE_CODE_OAUTH_TOKEN`). A subscription token is tied to the user's personal account; for a team-owned repo an org API key would be more appropriate.
+- **SRS reference:** _TBD_ (quality assurance / process)
+- **History:** On 2026-10-22 this first shipped as a separate `pr-review.yml` that ran in parallel with CI and used an `ANTHROPIC_API_KEY`. The same day, the user asked for (1) the review to run only after the other checks pass, so it moved into `ci.yml` as a `needs:` job (a `workflow_run` trigger was rejected: it runs with secrets in the base repo's context even for fork PRs, and it doesn't show up as a check on the PR), and (2) a free option, so it moved to the subscription token. The "quick wins" section was also renamed **"quick fixes"**, as originally intended.
+- **Constraint for Claude:** Don't make this job blocking or required, don't widen its tool permissions to write or push, and don't change the trigger to `pull_request_target` without asking. Change review criteria in the skill file, not the workflow prompt.
+
+---
+
+## PR review: Copilot code review, Claude skill for local use
+
+- **Date:** 2026-10-22
+- **Status:** Accepted. Supersedes "PR review: Claude-rated, advisory".
+- **Context:** The Claude CI review (previous entry) would run on the user's Claude subscription token, which shares usage limits with their own Claude.ai and Claude Code use. The user doesn't want automated reviews eating into that. A per-token API key was already ruled out on cost.
+- **Options considered:**
+  1. *Keep the Claude `review` job* on the subscription token. Rejected: it draws on the same limits the user works with every day.
+  2. *Claude job on an API key, triggered only by a `review` label.* Rejected: still billed, and needs remembering to add the label.
+  3. *Non-LLM checks only* (a rules script, CodeQL, SonarQube Cloud). Free, but they can't give the quick-fix suggestions the user wants. Still possible as additions.
+  4. *GitHub Copilot code review*, automatically requested by a repository ruleset and guided by `.github/copilot-instructions.md`. **Chosen.** It uses the user's GitHub Copilot plan (likely free for students through GitHub Education), not Claude limits.
+- **Decision:**
+  - The `review` job is removed from `ci.yml`, which goes back to three secret-free jobs.
+  - `.github/copilot-instructions.md` is a condensed copy of the `/pr-review` rubric: a 1–5 scorecard (Risk, Correctness, Code quality, Tests, Docs), a verdict, findings, **Quick fixes**, and this repo's rules (documentation rule, Firebase-only auth, server-side points D-API-005, no Google Maps keys D-UI-001, service-specific checks). It's kept under the ~4,000 characters that Copilot code review reads.
+  - Copilot review is turned on by the user in GitHub: **Settings → Rules → Rulesets → New branch ruleset** targeting `main`, then enable **"Automatically request Copilot code review"** (optionally "Review new pushes"). It can't be turned on from a file in the repo.
+  - `.claude/skills/pr-review/SKILL.md` stays for **local, on-demand** reviews (`/pr-review [PR#]`). It only uses Claude when the user runs it.
+- **Why:** It's the closest automated match to what the user wanted, with no Claude usage and no per-run bill.
+- **Consequences:**
+  - **No "after CI passes" gating.** Copilot reviews when a PR opens (and on new pushes if enabled), whether or not the checks pass. The user asked for gating, but can't have it with this tool.
+  - **The format isn't guaranteed.** Copilot treats instructions as guidance and leaves normal review comments, so the scorecard may be partial or missing. Tighten the instructions file if it drifts.
+  - **Two copies of the rubric** (the skill and `copilot-instructions.md`) must be kept in sync by hand. The skill is the full version.
+  - Copilot code review uses the plan's monthly premium requests. Check the plan's allowance if the repo gets busy.
+  - `copilot-instructions.md` is also read by Copilot Chat and the Copilot coding agent in this repo, which is fine since the rules apply there too.
+- **SRS reference:** _TBD_ (quality assurance / process)
+- **Constraint for Claude:** Don't add AI-review jobs that use Claude tokens or API keys to CI without asking. When the review rubric changes, update **both** the skill and `.github/copilot-instructions.md`.
+
+---
+
+## Hosting: Render free tier + Supabase, all on the user's own accounts
+
+- **Date:** 2026-10-23
+- **Status:** Accepted
+- **Context:** The original deployment (Render web services, a Render Postgres database, and the `ftlcapstone` Firebase project) belongs to a teammate, and the Render database has expired. The user is moving every external service onto accounts they own, and wants **free** hosting for all three services. Render's free Postgres expires after about 30 days, so it can't hold the database long-term.
+- **Options considered:**
+  - *Database:* **Supabase free** (chosen: 500 MB Postgres, no expiry, but pauses after ~7 days without activity), Neon free (similar, also fine), Render free Postgres (rejected: expires after ~30 days).
+  - *API and search service:* **Render free web services** (chosen: no card needed, deploys from GitHub, the team already knows it; services sleep after 15 minutes idle and take ~1 minute to wake), Railway (rejected: only a one-time trial credit), Koyeb (rejected: one free service, and recent reports say it needs a card), Fly.io (rejected: no free tier for new accounts).
+  - *Frontend:* **Render static site** (chosen: free, doesn't sleep, same account and Blueprint as the other two), Vercel / Netlify / Cloudflare Pages (all free and fine; rejected only to keep everything in one place).
+  - *Auth:* a **new Firebase project** on the user's account (Spark plan, free). Email/password is the only sign-in method used.
+- **Decision:** One `render.yaml` Blueprint at the repo root defines `volunteergo-api` (Node), `volunteergo-search` (Python, `ENV=production`, `requirements-prod.txt`), and `volunteergo-ui` (static, with an SPA rewrite to `index.html`). The database is Supabase (VolunteerAPI D-API-008). Secrets and URLs are `sync: false` and set in the Render dashboard. The step-by-step setup is in CONTEXT.md.
+- **Why:** It's $0 with no card, everything (except the database and Firebase) lives in one dashboard, and it auto-deploys from `main`.
+- **Consequences:**
+  - **Cold starts:** after 15 idle minutes the API and search sleep. The first page load then waits up to about a minute (the search service also wakes the API, since it loads opportunities on startup). **Open the site a couple of minutes before a demo.**
+  - Render's free tier has ~750 instance hours a month per workspace, shared by both web services. Because they sleep when idle, a class project shouldn't run out.
+  - **Supabase pauses after ~7 days with no activity.** Restore it from the dashboard before demos.
+  - `VITE_` variables are baked in at build time. Changing one in Render needs a redeploy of the UI.
+  - Migrations run in the API's build command (`prisma migrate deploy`), because Render's pre-deploy command isn't available on the free plan. A failing migration fails the deploy.
+  - Free-tier limits change often; these were checked on 2026-10-23.
+- **SRS reference:** _TBD_ (deployment / availability)
+- **Constraint for Claude:** Don't add paid services, or anything that needs a card on file, without asking. Keep `render.yaml` in sync when env vars, build commands or start commands change. Never commit secret values; they go in the Render dashboard.
 
 ---
 

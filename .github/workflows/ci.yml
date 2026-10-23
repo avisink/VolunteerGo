@@ -1,6 +1,7 @@
 # Runs on every PR and on pushes to main. One job per service so a failure
 # points straight at the service that broke. Decisions behind this file are
 # recorded in KEY_DECISIONS.md ("CI: GitHub Actions, one job per service").
+# AI PR review is Copilot code review (a repo ruleset), not a job here.
 name: CI
 
 on:
@@ -48,11 +49,9 @@ jobs:
           cache: npm
           cache-dependency-path: VolunteerUI/package-lock.json
       - run: npm ci --ignore-scripts
-      # Non-blocking until the existing lint errors are cleaned up (see
-      # CONTEXT.md). Remove continue-on-error once `npm run lint` is clean.
-      - name: Lint (non-blocking)
-        run: npm run lint
-        continue-on-error: true
+      # Blocking since lint was cleaned up (VolunteerUI D-UI-002). Warnings
+      # (react-hooks/exhaustive-deps) don't fail the job; errors do.
+      - run: npm run lint
       - run: npm run build
 
   search:

@@ -1,6 +1,7 @@
 import './ProgressBar.css';
 
-export function getLevelData(points) {
+// Display only: mirrors getLevelFromPoints in VolunteerAPI/lib/gamification.js, which owns the real level (D-API-005).
+function getLevelData(points) {
   if (points < 0) return { level: 1, progress: 0, currentLevelPoints: 0, nextLevelPoints: 10 };
   
   let level = 1;

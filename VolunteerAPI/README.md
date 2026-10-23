@@ -38,7 +38,9 @@ Loaded from `VolunteerAPI/.env` via `dotenv`.
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `DATABASE_URL` | Prisma | PostgreSQL connection string |
+| `DATABASE_URL` | Prisma | PostgreSQL connection string the app uses. On Supabase: the **transaction pooler** (port `6543`, ending `?pgbouncer=true`) |
+| `DIRECT_URL` | Prisma | Connection used by `prisma migrate`. On Supabase: the **session pooler** (port `5432`). Required by `schema.prisma` ([D-API-008](#d-api-008-supabase-connection-settings-and-a-working-seed-script)) |
+| `ADMIN_UIDS` | `middleware/auth.js` | Comma-separated Firebase UIDs allowed to create/edit/delete opportunities, organizations and badges. Unset means nobody ([D-API-007](#d-api-007-require-login-on-every-write-and-admins-for-catalog-data)) |
 | `PORT` | `server.js` | Port the API listens on (VolunteerSearch defaults to `3000`) |
 | `FRONTEND_URL` | `app.js` | The only origin allowed by CORS |
 | `NODE_ENV` | `firebase/firebaseAdmin.js` | `production` reads the Firebase key from `FIREBASE_SERVICE_ACCOUNT` instead of the JSON file |
@@ -47,6 +49,8 @@ Loaded from `VolunteerAPI/.env` via `dotenv`.
 | `OPENAI_API_KEY` | `controllers/chatController.js` | Chat feature (currently unreachable, see [Known issues](#known-issues)) |
 | `VITE_SENDGRID_API_KEY` | `controllers/userController.js` | Application confirmation emails |
 
+For deployment, `render.yaml` at the repo root lists the same variables (see [KEY_DECISIONS.md](../KEY_DECISIONS.md), hosting entry).
+
 ## Scripts
 
 | Command | What it does |
@@ -54,12 +58,11 @@ Loaded from `VolunteerAPI/.env` via `dotenv`.
 | `npm run dev` | Start with nodemon |
 | `npm start` | Start with node |
 | `npm test` | Run the Jest test suite |
-| `node seed.js` | Seed the database. **Deletes all Opportunity, Organization and Badge rows first.** |
-| `node level.js` | Recompute every user's level from their points (manual, not part of the server) |
+| `npm run seed` (= `node seed.js`) | Seed the database. **Deletes all Opportunity, Organization and Badge rows first.** |
+| `node level.js` | Backfill: recompute every user's level from their points with the shared formula. Only needed for data written before D-API-005 |
 | `npx prisma migrate dev --name <name>` | Create and apply a migration after editing `schema.prisma` |
 | `npx prisma generate` | Regenerate the Prisma client |
 
-`npm run seed` exists but probably doesn't work, see [Known issues](#known-issues).
 
 ## Project structure
 
@@ -70,13 +73,15 @@ VolunteerAPI/
 ├── routes/             # one router per resource, mounted in app.js
 ├── controllers/        # request handlers; talk to the database via db/db.js
 ├── middleware/auth.js  # verifyFirebaseToken (Firebase) and optionalAuthenticateToken (JWT)
+├── lib/gamification.js # points-per-application and the level curve (the only place they're computed)
+├── lib/badges.js       # badge rules and awardBadges (the only place badges are given)
 ├── db/db.js            # the single shared PrismaClient
 ├── firebase/           # firebase-admin initialisation (+ serviceAccountKey.json, not committed)
 ├── prisma/             # schema.prisma (source of truth) and migrations/
 ├── chatModel/          # Chat persistence helpers
 ├── opp_scraper/        # Scrapy project that produces opportunity_updated.json for seeding
 ├── seed.js             # seeds organizations, opportunities and badges
-├── level.js            # standalone level backfill script
+├── level.js            # manual level backfill, uses lib/gamification.js
 └── tests/              # Jest + Supertest tests
 ```
 
@@ -94,7 +99,7 @@ Request flow: `server.js` → `app.js` (CORS, logging, JSON parsing) → `routes
 
 ## Endpoints
 
-🔒 means the route requires `Authorization: Bearer <Firebase ID token>`.
+🔒 means the route requires `Authorization: Bearer <Firebase ID token>`. 👤 means `:id` must also be the caller's own user (403 otherwise). 👑 means the caller's UID must be in `ADMIN_UIDS` (403 otherwise). Every write route has at least 🔒 ([D-API-007](#d-api-007-require-login-on-every-write-and-admins-for-catalog-data)).
 
 **`/opportunities`**
 | Method | Path | Notes |
@@ -102,11 +107,11 @@ Request flow: `server.js` → `app.js` (CORS, logging, JSON parsing) → `routes
 | GET | `/` | Query: `keyword` (name contains), `city` (location contains), `sort_by`, `order=asc\|desc`. Default sort `createdAt asc`. Includes the organization. |
 | GET | `/cities?q=` | Up to 20 unique city names taken from matching **organization** locations (`"City, ST"`) |
 | GET | `/:id` | 404 if not found |
-| POST | `/` | Create |
-| PUT | `/:id` | Update |
-| DELETE | `/:id` | Delete |
+| POST | `/` 🔒👑 | Create |
+| PUT | `/:id` 🔒👑 | Update |
+| DELETE | `/:id` 🔒👑 | Delete |
 
-**`/organizations`** and **`/badges`**: standard CRUD (`GET /`, `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id`). Badges also have `POST /badges/give` to award a badge.
+**`/organizations`** and **`/badges`**: standard CRUD. Reads (`GET /`, `GET /:id`) are public; `POST /`, `PUT /:id` and `DELETE /:id` are 🔒👑. There's no endpoint to award a badge: badges are awarded by the actions that earn them ([D-API-006](#d-api-006-award-badges-on-the-server)).
 
 **`/users`**
 | Method | Path | Notes |
@@ -114,18 +119,17 @@ Request flow: `server.js` → `app.js` (CORS, logging, JSON parsing) → `routes
 | GET | `/` | All users |
 | GET | `/:id` | By database ID |
 | GET | `/by-uid/:uid` | By Firebase UID |
-| POST | `/` | Create user |
+| POST | `/` 🔒 | Create the caller's user row. The Firebase UID comes from the token; the body only gives `username` and optional `name` |
 | GET | `/:id/opportunities` | Applied/joined opportunities |
-| PUT | `/:id/opportunities/add` | Apply to/join an opportunity |
+| PUT | `/:id/opportunities/add` 🔒 | Apply to an opportunity. `:id` must be the caller (403 otherwise). Awards the opportunity's `points` (10 if it has none), recomputes the level, awards badges, and returns `{ opportunities, points, level, pointsAwarded, leveledUp, badgesEarned }`. Applying again awards nothing. See [D-API-005](#d-api-005-compute-points-and-levels-on-the-server) |
 | GET | `/:id/saved-opportunities` | Saved opportunities |
-| POST | `/:id/saved-opportunities/add` | Save |
-| POST | `/:id/saved-opportunities/remove` | Unsave |
-| PUT | `/points` 🔒 | Update the caller's points |
-| POST | `/onboarding` 🔒 | Save onboarding answers |
-| POST | `/send-confirmation-email` 🔒 | SendGrid application confirmation |
-| DELETE | `/:id` | Delete user |
+| POST | `/:id/saved-opportunities/add` 🔒👤 | Save |
+| POST | `/:id/saved-opportunities/remove` 🔒👤 | Unsave |
+| POST | `/onboarding` 🔒 | Save onboarding answers. Awards the Newcomer badge the first time; returns `badgesEarned` |
+| POST | `/send-confirmation-email` 🔒 | SendGrid application confirmation, always sent to the caller's own Firebase email (any `to` in the body is ignored) |
+| DELETE | `/:id` 🔒👤 | Delete your own user row |
 
-**`/friends`** 🔒 (every route): `POST /request`, `GET /received-requests`, `GET /sent-requests`, `POST /accept`, `POST /reject`, `POST /cancel`, `POST /unfriend`, `GET /list`.
+**`/friends`** 🔒 (every route): `POST /request`, `GET /received-requests`, `GET /sent-requests`, `POST /accept` (awards the accepter the Volunteer Connector badge; returns `badgesEarned`), `POST /reject`, `POST /cancel`, `POST /unfriend`, `GET /list`.
 
 ## Authentication
 
@@ -148,9 +152,14 @@ How they work:
 
 - To test a 🔒 route, mock `firebaseAdmin.js` as `{ auth: () => ({ verifyIdToken: mockVerifyIdToken }) }`. Then make `mockVerifyIdToken` resolve to a fake decoded token (`{ uid: "..." }`) or reject. See `tests/auth.test.js`. The mock function's name must start with `mock` so Jest allows it inside `jest.mock()`.
 
-**Current coverage (10 tests):**
+**Current coverage (44 tests):**
 - `tests/opportunities.test.js`: `GET /opportunities` (list, keyword/city filters, 500 on DB error) and `GET /opportunities/:id` (found, 404).
-- `tests/auth.test.js`: `verifyFirebaseToken` via `PUT /users/points` (no header, non-Bearer header, unverifiable token → 401, verified uid passed to the controller) and the 400 for a missing `points`/`level`.
+- `tests/auth.test.js`: `verifyFirebaseToken` via `PUT /users/:id/opportunities/add` (no header, non-Bearer header, unverifiable token → 401; a verified uid reaches the controller).
+- `tests/gamification.test.js`: the level curve, points per opportunity, and the apply endpoint (awards server-side points, ignores client-sent points/level, no double award, 403 for another user, 404 unknown opportunity, 400 missing id), plus `PUT /users/points` being gone and `POST /users/onboarding` ignoring client points/level.
+
+- `tests/access.test.js`: badge rules, badges awarded by apply/onboarding/friend-accept, `POST /badges/give` gone, admin-only catalog writes (401/403/allowed with `ADMIN_UIDS`), public reads, self-only saved/delete routes, `POST /users` taking the UID from the token, and confirmation email going only to the caller.
+
+To mock `prisma.$transaction`, make it call its callback with the mock client (see the top of `tests/gamification.test.js`). Tests that need an admin set `process.env.ADMIN_UIDS` and delete it in `beforeEach`.
 
 Everything else is untested so far.
 
@@ -161,9 +170,9 @@ Everything else is untested so far.
 These are also tracked in [CONTEXT.md](../CONTEXT.md).
 
 - **Chat is unreachable.** `routes/chatRoutes.js` is never mounted in `app.js`, and `chatModel.js` uses `conversationID` while the schema says `conversationId`.
-- **`npm run seed` probably doesn't work.** `package.json` has no `prisma.seed` setting, so `prisma db seed` has nothing to run. Use `node seed.js`.
-- **Most write endpoints have no auth.** Creating, updating and deleting opportunities, organizations and badges, `DELETE /users/:id`, and the save/apply routes all accept requests without a token.
-- **Points and levels are trusted from the client.** `PUT /users/points` writes whatever `points` and `level` the request body contains, so a signed-in user can set their own score. The server should calculate points (for example, when an application is accepted) and work out the level with the `level.js` formula.
+- **There's no admin UI.** Catalog data (opportunities, organizations, badges) comes from `seed.js`, or from API calls by someone listed in `ADMIN_UIDS` (D-API-007).
+- **Two simultaneous applies to the same opportunity can award points twice.** The "already applied?" check runs before the transaction (D-API-005). It's unlikely from the UI (the button is disabled while submitting) and costs at most one extra award.
+- **Friend accept isn't atomic.** `acceptFriendRequest` updates the request and both users in separate queries, so a failure partway can leave the request accepted without the friendship. Badge awarding runs after them.
 - **`optionalAuthenticateToken` uses a JWT secret, not Firebase,** so it can't validate the tokens the frontend actually sends. It isn't used on any route right now.
 
 ## Decision log
@@ -176,7 +185,7 @@ These were in place before 2026-10-22, and their rationale wasn't written down. 
 
 - **Express + Prisma + PostgreSQL** as the API stack. Rationale not documented.
 - **Firebase Authentication** for identity. See [KEY_DECISIONS.md](../KEY_DECISIONS.md#auth-firebase-is-canonical-not-clerk).
-- **Level computation in a standalone script** (`level.js`) rather than on every points update. Rationale not documented.
+- **Level computation in a standalone script** (`level.js`) rather than on every points update. Rationale not documented. Superseded by [D-API-005](#d-api-005-compute-points-and-levels-on-the-server); `level.js` is now only a backfill.
 - **Seed data comes from a Scrapy scraper** (`opp_scraper/` → `opportunity_updated.json` → `seed.js`). Rationale not documented.
 
 ### D-API-001: Split the Express app from the server entry point
@@ -236,3 +245,94 @@ These were in place before 2026-10-22, and their rationale wasn't written down. 
 - **Rationale:** Readable test and CI output with a one-line change. Development and production logging don't change.
 - **Consequences:** Request logs never show up in test runs. If you're debugging a test, temporarily log inside it.
 - **SRS reference:** _TBD_
+
+### D-API-005: Compute points and levels on the server
+
+- **Date:** 2026-10-22
+- **Status:** Accepted
+- **Context:** Applying to an opportunity worked like this: the UI added 10 to the user's points, computed the level itself, and sent both to `PUT /users/points`, which saved whatever it received. Any signed-in user could send `{ "points": 99999 }` and top the leaderboard. Separately, `PUT /users/:id/opportunities/add` (apply) had **no auth at all**, so anyone could apply on anyone's behalf. The level formula existed twice (`level.js` and the UI's `ProgressBar`), and `onboarding` also accepted `points`/`level` from the body. Gamification is the core of the product, so its numbers need to be trustworthy.
+- **Options considered:**
+  1. *Keep `PUT /users/points` but validate it* (only allow +10, check the level matches). Rejected: the server would still be checking the client's math instead of doing it, and the client could still call it without applying.
+  2. *Award points inside the apply endpoint.* **Chosen.** The action that earns points and the points themselves change together, in one transaction.
+  3. *Award points when an organization accepts the application* (what the old README suggested). Rejected for now: there's no acceptance flow or application status in the data model. Worth revisiting if one is added, since it would reward actual volunteering, not just applying.
+  4. *Store the level as derived only* (compute on read, drop `User.level`). Rejected: the leaderboard, profile and friends views already read `level` from many places. Keeping the column but writing it only on the server gets the safety without touching every reader.
+- **Decision:**
+  - New `lib/gamification.js` holds `getLevelFromPoints` (the existing curve: 15 points to level 2, then 5 more each level) and `pointsForOpportunity`, which uses the opportunity's own `points`, or `DEFAULT_APPLICATION_POINTS` (10) when it's 0. All seeded opportunities have 10, so today's behaviour is unchanged.
+  - `PUT /users/:id/opportunities/add` now requires `verifyFirebaseToken`, returns 403 unless `:id` belongs to the caller, returns 404 for an unknown opportunity, and, in one `$transaction`, connects the opportunity, increments `points`, and sets `level` from the new total. It returns `{ opportunities, points, level, pointsAwarded, leveledUp }`. **Re-applying awards nothing** (`pointsAwarded: 0`).
+  - `PUT /users/points` and `updateUserPoints` are **removed**. `POST /users/onboarding` ignores `points` and `level` in the body.
+  - `level.js` uses the shared helper and is now CommonJS. Its `import` syntax couldn't run in this package before.
+  - The UI (`ApplyModal`) no longer computes or sends points. It reads `leveledUp` from the response to trigger the level-up animation. `ProgressBar.getLevelData` stays for display only, with a comment pointing here.
+- **Rationale:** The server is the only party that can be trusted with a score. Tying the award to the apply action removes the separate endpoint and makes the award idempotent. Using the opportunity's own `points` field (which already existed and was seeded) lets some opportunities be worth more later with no code change.
+- **Consequences / trade-offs:**
+  - **Breaking API change:** clients calling `PUT /users/points` now get 404, and apply needs a bearer token. The only caller of each was `ApplyModal`, updated in the same change.
+  - The UI's progress bar still uses its own copy of the curve. If the curve changes, update both, or expose level progress from the API.
+  - The duplicate-apply check happens before the transaction, so two simultaneous requests could both award points (see Known issues). A unique "application" row would fix this properly.
+  - Badges are still granted by client calls to an unauthenticated `POST /badges/give`. That's the obvious next fix of the same kind.
+  - Points for things other than applying (e.g. attending) would need new server-side award points, not a general "set points" endpoint.
+- **SRS reference:** _TBD_ (gamification: points, levels, leaderboard integrity)
+
+### D-API-006: Award badges on the server
+
+- **Date:** 2026-10-23
+- **Status:** Accepted
+- **Context:** Badges were awarded by the UI. `utils/badgeService.js` checked the rules in the browser and called `POST /badges/give { userId, badgeName }`, which had **no auth**. Anyone could give any user any badge with one request, the same trust problem D-API-005 fixed for points. The checks also cost 2–4 extra requests per action, and the leaderboard check downloaded every user.
+- **Options considered:**
+  1. *Protect `POST /badges/give` with a token and a self-check.* Rejected: a signed-in user could still award themselves every badge, because the server wouldn't know whether they'd earned it.
+  2. *Award badges inside the actions that earn them.* **Chosen.**
+  3. *A periodic job that recomputes everyone's badges.* Rejected: there's nowhere to run one on the free hosting plan, and users expect the "badge earned" modal immediately.
+- **Decision:**
+  - `lib/badges.js` holds the rules: **Newcomer Badge** (onboarding), **First Steps** (first application), **Animal Advocate / Heart of the Community / Planet Protector** (applying to an opportunity tagged `animals` / `community` / `environment`, case-insensitive), **Impact Leader** (after applying, nobody has more points: **ties count**, where the old check took whoever the database listed first), and **Volunteer Connector** (accepting a friend request; only the accepter gets it, as before).
+  - `awardBadges(db, userId, names)` connects only the badges the user doesn't have, skips names with no `Badge` row, and returns the newly earned rows.
+  - Apply awards badges inside its transaction. Onboarding and friend accept award them after their writes. All three return `badgesEarned`, which the UI shows in its existing badge modal.
+  - `POST /badges/give` and `badgeController.give` are **removed**, and `VolunteerUI/src/utils/badgeService.js` is deleted.
+- **Rationale:** Same as D-API-005: the server can only trust what it decides itself. Awarding inside the action keeps the rule and the event together, and the UI gets the result in the same response.
+- **Consequences / trade-offs:**
+  - **Breaking:** `POST /badges/give` returns 404. Its only callers were in `badgeService.js`, removed in the same change.
+  - Badge names in `lib/badges.js` must match the rows `seed.js` creates. A typo means the badge silently never awards (it's skipped, not an error).
+  - Users who reached a badge condition before this change don't get it retroactively until they trigger the action again. A backfill script could fix that if needed.
+  - Impact Leader is only checked when *you* apply, so you keep it after someone overtakes you (as before).
+- **SRS reference:** _TBD_ (gamification: badges)
+
+### D-API-007: Require login on every write, and admins for catalog data
+
+- **Date:** 2026-10-23
+- **Status:** Accepted
+- **Context:** Most write endpoints accepted requests with no token: create/update/delete for opportunities, organizations and badges, `DELETE /users/:id`, saving and unsaving, and `POST /users` (whose body chose the Firebase UID). Anyone on the internet could delete every opportunity or every user. Separately, `POST /send-confirmation-email` sent any `to`/`subject`/`html` through the project's SendGrid account for any signed-in user, which made it an open email relay.
+- **Options considered:**
+  1. *Just require a token everywhere.* Rejected for catalog data: any user who signs up could still edit or delete every opportunity.
+  2. *Roles in the database* (a `role` column or `Admin` table). Cleaner long-term, but needs a migration and a way to manage roles, and the UI has no admin screens.
+  3. *An `ADMIN_UIDS` allowlist in the environment.* **Chosen** for catalog writes: no schema change, easy to set on the host.
+  4. *Remove catalog write endpoints entirely* (seed-only). Rejected: they'd be needed for any future admin or organization tools.
+- **Decision:**
+  - New middleware in `middleware/auth.js`: `requireAdmin` (caller's UID must be in comma-separated `ADMIN_UIDS`; unset means nobody) and `requireSelf` (loads the user in `:id`, 404 if missing, 403 unless it belongs to the caller). Both run after `verifyFirebaseToken`.
+  - **Admin-only (🔒👑):** `POST`/`PUT`/`DELETE` on `/opportunities`, `/organizations`, `/badges`. Reads stay public.
+  - **Self-only (🔒👤):** `POST /users/:id/saved-opportunities/add|remove`, `DELETE /users/:id`. (Apply already checks this itself, D-API-005.)
+  - **`POST /users`** requires a token and takes the UID from it; a `firebaseUid` in the body is ignored.
+  - **Confirmation email** always goes to the caller's own token email. A `to` in the body is ignored, and an account with no email gets 400.
+  - The UI now sends the token on save/unsave (DraggableCard, OpportunityGrid, SavedPage).
+- **Rationale:** Closes every unauthenticated write without a schema change. The allowlist is the smallest thing that keeps catalog data safe until there's a real admin feature.
+- **Consequences / trade-offs:**
+  - **Breaking:** those routes now return 401 without a token, and 403 for someone else's account or a non-admin.
+  - With `ADMIN_UIDS` unset (the default), catalog data can only change through `seed.js`. To get your UID, sign in and look in Firebase Console → Authentication → Users.
+  - `requireSelf` adds one small query per protected request.
+  - Read endpoints are still public, including `GET /users`, which returns every user's profile. Fine for a public leaderboard, but worth revisiting for privacy.
+  - Follow-up: replace `ADMIN_UIDS` with roles if an admin UI is built.
+- **SRS reference:** _TBD_ (security)
+
+### D-API-008: Supabase connection settings, and a working seed script
+
+- **Date:** 2026-10-23
+- **Status:** Accepted
+- **Context:** The database is moving to Supabase (KEY_DECISIONS.md, hosting entry). Supabase's recommended setup for an always-on server is a **transaction pooler** (PgBouncer, port 6543) for the app, but `prisma migrate` doesn't work through PgBouncer in transaction mode. Separately, `npm run seed` ran `prisma db seed` with no seed command configured, so it did nothing useful.
+- **Options considered:**
+  1. *`DATABASE_URL` = transaction pooler (`?pgbouncer=true`), `DIRECT_URL` = session pooler, plus `directUrl` in `schema.prisma`.* **Chosen.** This is Prisma's and Supabase's documented setup.
+  2. *Use the session pooler for everything.* Simpler, but session mode holds a connection per client, so the free tier's connection limit runs out sooner.
+  3. *Use the direct connection (`db.<ref>.supabase.co`).* Rejected: it's IPv6-only and fails on many home networks and on Render.
+  4. For seeding: *add `"prisma": { "seed": "node seed.js" }`* vs *make the script `node seed.js`*. Chose the second: simpler, and nothing else uses `prisma db seed`.
+- **Decision:** `schema.prisma` adds `directUrl = env("DIRECT_URL")`. `npm run seed` is now `node seed.js`.
+- **Rationale:** Migrations and runtime each get the connection type they need.
+- **Consequences / trade-offs:**
+  - **`DIRECT_URL` is now required** wherever Prisma runs migrations (locally, and in the Render build, which runs `prisma migrate deploy`). Set it to the same value as `DATABASE_URL` for a plain local Postgres.
+  - Tests are unaffected (they mock Prisma).
+- **SRS reference:** _TBD_
+

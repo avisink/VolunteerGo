@@ -63,7 +63,7 @@ VolunteerUI/src/
 │   └── <Feature>/      # one folder per page or component (JSX + CSS)
 ├── contexts/           # OpportunityContext, ProfileContext, LeaderboardContext
 ├── hooks/useAuth.jsx   # AuthProvider / useAuth
-├── utils/              # badgeService, getImage (Pexels), loadGoogleMaps
+├── utils/              # getImage (Pexels), loadGoogleMaps
 └── data/opportunities.js   # static sample data, not imported anywhere
 ```
 
@@ -95,23 +95,24 @@ App-wide state lives in React Context. There's no Redux or other state library.
   - So stale data after a backend change is expected: clear `localStorage` or force a refetch.
 - **`ProfileProvider`**: loads the signed-in user with `GET /users/by-uid/:uid`. On a 404 it creates the user (`POST /users`), then fetches again. Sends the Firebase token as a bearer token.
 - **`LeaderboardProvider`**: `GET /users`, exposes `refreshLeaderboard`.
-- **`badgeService`**: client-side badge checks. For example, it awards the "Newcomer Badge" through `POST /badges/give` if the user doesn't already have it.
+- **Badges** are awarded by the API (VolunteerAPI D-API-006). Apply, onboarding and friend accept return `badgesEarned`, which `BadgeModal` shows. The old client-side `badgeService` was removed.
 
 Network calls use a mix of `fetch` and `axios`.
 
 ## Authentication
 
-Firebase Authentication (`firebase/auth`), **email/password sign-in only**, is the only auth system in use (see [KEY_DECISIONS.md](../KEY_DECISIONS.md#auth-firebase-is-canonical-not-clerk)). After sign-in, `useAuth` provides the Firebase ID token, and components send it as `Authorization: Bearer <token>` to the API routes that require it.
+Firebase Authentication (`firebase/auth`), **email/password sign-in only**, is the only auth system in use (see [KEY_DECISIONS.md](../KEY_DECISIONS.md#auth-firebase-is-canonical-not-clerk)). After sign-in, `useAuth` provides the Firebase ID token, and components send it as `Authorization: Bearer <token>` to the API routes that require it. Every API write requires it since VolunteerAPI D-API-007, so any new `fetch`/`axios` call that changes data must include the header.
 
 ## Testing
 
-There are no automated tests yet. The `ui` job in `.github/workflows/ci.yml` runs on every PR: `npm run build` must pass, and `npm run lint` runs but **doesn't block** while the 36 existing lint errors remain (see [KEY_DECISIONS.md](../KEY_DECISIONS.md#ci-github-actions-one-job-per-service)). Adding component tests is a future decision for this log.
+There are no automated tests yet. The `ui` job in `.github/workflows/ci.yml` runs on every PR, and both `npm run lint` and `npm run build` must pass. Lint errors fail CI; warnings don't (see [D-UI-002](#d-ui-002-clean-up-lint-and-make-it-blocking-in-ci)). Adding component tests is a future decision for this log.
 
 ## Known issues
 
 - **Unused Clerk key is still required.** `main.jsx` throws `Missing Publishable Key` if `VITE_CLERK_PUBLISHABLE_KEY` isn't set, but the value is never used. Clerk was otherwise removed in favour of Firebase. Removing the check needs your confirmation first (see KEY_DECISIONS.md about Clerk).
 - **Stale opportunities** from the `localStorage` cache (see above). This is by design, but can be surprising.
 - **`src/data/opportunities.js`** isn't imported anywhere.
+- **7 `react-hooks/exhaustive-deps` lint warnings** (FriendsPage, DraggableCard, Leaderboard, MapSearch, Onboarding, OpportunityGrid, ProfileContext). They're left on purpose, see [D-UI-002](#d-ui-002-clean-up-lint-and-make-it-blocking-in-ci).
 
 ## Decision log
 
@@ -145,4 +146,29 @@ These were in place before 2026-10-22, and their rationale wasn't written down. 
   - City autocomplete (`CitySearch`) uses LocationIQ and is unaffected.
 - **SRS reference:** _TBD_
 
-_The next UI decision gets ID `D-UI-002`._
+### D-UI-002: Clean up lint and make it blocking in CI
+
+- **Date:** 2026-10-22
+- **Status:** Accepted
+- **Context:** `npm run lint` reported 36 errors and 8 warnings in existing code, so CI ran lint as non-blocking (KEY_DECISIONS.md, CI entry) and new lint problems slipped through. Most errors were unused variables, and some of them were real costs, not just noise:
+  - `HomeHero` still ran a `mousemove` listener that set state on **every mouse move** for a sparkle effect whose JSX was commented out, re-rendering the hero constantly.
+  - `ProfilePage` kept a mock friends prototype (hardcoded users, a 215-line unused `renderFriends`) and **downloaded every user on each profile visit** for a search box that no longer rendered. The real feature lives in `FriendsPage`.
+- **Options considered:**
+  1. *Fix the errors, keep warnings as warnings, make lint blocking.* **Chosen.**
+  2. *Also fix the 8 `exhaustive-deps` warnings.* Deferred: adding missing dependencies to effects that call functions defined in the component can cause refetch loops. Each one needs a `useCallback` or restructuring, and testing in a browser, and there are no UI tests to catch regressions.
+  3. *Silence rules globally* (or `--max-warnings`). Rejected: it hides real problems like the two above.
+  4. For `react-refresh/only-export-components` in `contexts/` and `hooks/` (each file exports a Provider and its `use*` hook): *split every hook into its own file* vs *turn the rule off for those folders*. **Chose turning it off for those folders.** Splitting would change ~30 import sites for little gain; the only cost is that editing a context file does a full reload instead of a hot update.
+- **Decision:**
+  - Removed unused imports, variables, props (`applicant` on `ApplyModal`, `apiLoaded` on `SearchHeader`/`SearchPage`) and dead code (`HomeHero` sparkles and the `arrowAnimation` import, `ProfilePage` mock friends, `Onboarding.handleArrayInput`, `DraggableCard` drag-distance state). Where a state setter is still called but its value is never read, the value is left out of the destructuring (`const [, setX]`) instead of rewriting the logic.
+  - `badgeService.checkFirstApplication`'s empty `catch` now logs the error.
+  - `ProgressBar.getLevelData` is no longer exported. Its only other user (`ApplyModal`) now gets `leveledUp` from the API (VolunteerAPI D-API-005).
+  - `eslint.config.js` turns off `react-refresh/only-export-components` for `src/contexts/**` and `src/hooks/**`.
+  - The `ui` CI job's lint step no longer has `continue-on-error`.
+- **Rationale:** A blocking lint check stays clean only if it starts clean, and the cleanup also removed a re-render storm and a wasted full-user download.
+- **Consequences / trade-offs:**
+  - Any lint **error** now fails CI. Warnings still pass.
+  - The deleted prototypes are recoverable from git history (before this change) if anyone wants them back.
+  - Follow-up: fix the `exhaustive-deps` warnings one at a time, with manual testing, then consider `--max-warnings 0`.
+- **SRS reference:** _TBD_
+
+_The next UI decision gets ID `D-UI-003`._

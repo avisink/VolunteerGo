@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node ./server.js",
     "test": "jest",
-    "seed": "npx prisma db seed",
+    "seed": "node seed.js",
     "dev": "nodemon ./server.js"
   },
   "repository": {

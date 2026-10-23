@@ -41,7 +41,7 @@ npm run build     # production build
 npm run lint      # ESLint
 npm run preview   # preview a production build
 ```
-There is no test suite in `VolunteerUI`.
+There is no test suite in `VolunteerUI`. Lint must have 0 errors (CI blocks on them).
 
 ### VolunteerAPI (backend)
 ```bash
@@ -49,7 +49,7 @@ cd VolunteerAPI
 npm install
 npm run dev        # nodemon server.js
 npm start          # node server.js
-node seed.js       # seed DB (wipes Opportunity/Organization/Badge rows first); `npm run seed` calls `prisma db seed` but no `prisma.seed` command is configured in package.json
+npm run seed       # = node seed.js; seeds DB (wipes Opportunity/Organization/Badge rows first)
 npx prisma migrate dev --name <name>   # create/apply a migration
 npx prisma generate                    # regenerate the Prisma client after schema changes
 ```
@@ -73,15 +73,20 @@ pytest tests/test_search.py -k stop     # tests matching a name
 ```
 
 ### CI
-`.github/workflows/ci.yml` (GitHub Actions) runs on every PR and on pushes to `main`, with three parallel jobs and no secrets: `api` (`npm test`), `ui` (lint, non-blocking, then `npm run build`), and `search` (`pytest`). When adding tests or changing how a service is built, make sure its CI job still covers it. Rationale is in KEY_DECISIONS.md.
+`.github/workflows/ci.yml` (GitHub Actions) runs on every PR and on pushes to `main`, with three parallel jobs and no secrets: `api` (`npm test`), `ui` (`npm run lint`, where errors block and warnings don't, then `npm run build`), and `search` (`pytest`). When adding tests or changing how a service is built, make sure its CI job still covers it.
+
+Automated PR review is **GitHub Copilot code review** (turned on by a repo ruleset), guided by `.github/copilot-instructions.md`. The full rubric is the `/pr-review` skill (`.claude/skills/pr-review/SKILL.md`), for local use. If you change one, change both. Don't add Claude-powered review jobs to CI. Rationale is in KEY_DECISIONS.md.
+
+### Deployment
+All three services deploy to Render's free tier from `render.yaml` (Blueprint), and the database is Supabase. Keep `render.yaml` in sync with env vars and build commands. Rationale is in KEY_DECISIONS.md (hosting entry), and setup steps are in CONTEXT.md.
 
 ### Running the full stack locally
 All three processes are started independently and talk to each other over HTTP — run each `dev`/`uvicorn` command above in its own terminal. `VolunteerSearch` needs `VolunteerAPI` to be running so it can fetch `/opportunities` on startup.
 
 Environment variables that matter (each service loads its own `.env`):
-- **VolunteerAPI**: `DATABASE_URL`, `PORT`, `FRONTEND_URL` (the only CORS origin allowed), `JWT_SECRET`, `OPENAI_API_KEY` (chat controller), `VITE_SENDGRID_API_KEY`. Firebase admin reads `firebase/serviceAccountKey.json` (path relative to cwd, so run from `VolunteerAPI/`) unless `NODE_ENV=production`, where it parses `FIREBASE_SERVICE_ACCOUNT` JSON instead.
+- **VolunteerAPI**: `DATABASE_URL` (Supabase transaction pooler), `DIRECT_URL` (session pooler, used by migrations), `ADMIN_UIDS` (Firebase UIDs allowed to edit catalog data), `PORT`, `FRONTEND_URL` (the only CORS origin allowed), `JWT_SECRET`, `OPENAI_API_KEY` (chat controller), `VITE_SENDGRID_API_KEY`. Firebase admin reads `firebase/serviceAccountKey.json` (path relative to cwd, so run from `VolunteerAPI/`) unless `NODE_ENV=production`, where it parses `FIREBASE_SERVICE_ACCOUNT` JSON instead.
 - **VolunteerUI**: `VITE_API_BASE_URL`, `VITE_SEARCH_URL` (VolunteerSearch base URL), `VITE_FIREBASE_*`, LocationIQ (city autocomplete), and Pexels keys. The Google Maps/Geocode vars are intentionally unset after a large bill: the `/map` page is a stretch feature (D-UI-001). Don't add Google keys back or introduce a paid maps API without asking; free alternatives are listed in CONTEXT.md.
-- **VolunteerSearch**: `ENV` (`production` switches to keyword-only scoring) and, confusingly, `VITE_API_BASE_URL` for the VolunteerAPI URL (defaults to `http://localhost:3000`). CORS origins are hardcoded in `main.py` (`localhost:5173` and the Render deployment).
+- **VolunteerSearch**: `ENV` (`production` switches to keyword-only scoring) and, confusingly, `VITE_API_BASE_URL` for the VolunteerAPI URL (defaults to `http://localhost:3000`). `FRONTEND_URL` (comma-separated CORS origins; `localhost:5173` is always allowed).
 
 The root `package.json` is a stray dependency list, not a workspace — don't install or build from the repo root.
 
@@ -102,9 +107,9 @@ Standard Express MVC-ish layout: `routes/` mount path prefixes in `server.js` (`
 
 Note: the README describes search as "OpenAI embeddings", but `VolunteerSearch` actually uses local `sentence-transformers` (no OpenAI dependency); OpenAI is only used by the API's chat controller.
 
-Auth (`middleware/auth.js`) is **Firebase**: `verifyFirebaseToken` verifies a Firebase ID token via `firebase-admin` (`firebase/firebaseAdmin.js`) and attaches the decoded token to `req.user`; `optionalAuthenticateToken` is a separate, JWT-based (not Firebase) guest-optional variant. See KEY_DECISIONS.md before touching auth.
+Every write route requires `verifyFirebaseToken`. Catalog writes (opportunities/organizations/badges) also need `requireAdmin` (`ADMIN_UIDS`), and `:id` user writes need `requireSelf` (D-API-007). Don't add an unauthenticated write route. Auth (`middleware/auth.js`) is **Firebase**: `verifyFirebaseToken` verifies a Firebase ID token via `firebase-admin` (`firebase/firebaseAdmin.js`) and attaches the decoded token to `req.user`; `optionalAuthenticateToken` is a separate, JWT-based (not Firebase) guest-optional variant. See KEY_DECISIONS.md before touching auth.
 
-Gamification logic: `level.js` is a standalone script (run manually, not wired into `server.js`) that recomputes every user's level from their points using an incrementing point-threshold curve and backfills `User.level`; apply the same formula if levels need to be computed elsewhere. Badges are awarded through `badgeController.js`/`Badge` model rather than computed on the fly.
+Gamification logic: points and levels are computed **only on the server**, in `lib/gamification.js` (D-API-005). Applying to an opportunity (`PUT /users/:id/opportunities/add`, 🔒) awards the opportunity's points and recomputes the level in one transaction. Never add an endpoint that lets the client set points or level. `level.js` is a manual backfill that uses the same helper. Badges are awarded only by the server, in `lib/badges.js`, as part of the action that earns them (apply, onboarding, friend accept; D-API-006). There's no award endpoint, and the client never decides badges.
 
 `opp_scraper/` is a separate Scrapy project used to scrape opportunity listings into `opportunity_updated.json`, which `seed.js` reads to populate `Organization`/`Opportunity` rows (deduplicating organizations by name) when seeding the database.
 

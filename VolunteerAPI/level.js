@@ -1,21 +1,9 @@
-import { PrismaClient } from "@prisma/client";
+// Backfill: recompute every user's level from their points with the server's formula.
+// Run manually from VolunteerAPI/: `node level.js`. New points already update the level (D-API-005).
+const { PrismaClient } = require("@prisma/client");
+const { getLevelFromPoints } = require("./lib/gamification");
+
 const prisma = new PrismaClient();
-
-function getLevelFromPoints(points) {
-  if (points < 0) return 1;
-
-  let level = 1;
-  let totalPoints = 0;
-  let pointsNeeded = 15;
-
-  while (points >= totalPoints + pointsNeeded) {
-    totalPoints += pointsNeeded;
-    level++;
-    pointsNeeded += 5;
-  }
-
-  return level;
-}
 
 async function updateAllUserLevels() {
   const users = await prisma.user.findMany();

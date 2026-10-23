@@ -5,7 +5,7 @@ import { useOpportunity } from "../../contexts/OpportunityContext";
 import { useProfile } from "../../contexts/ProfileContext";
 import "./SearchPage.css";
 
-function SearchPage({ apiLoaded }) {
+function SearchPage() {
   const { profile } = useProfile();
 
   const [searchFilters, setSearchFilters] = useState({
@@ -126,7 +126,6 @@ function SearchPage({ apiLoaded }) {
           onFilterChange={handleFilterChange}
           tags={uniqueTags}
           skills={uniqueSkills}
-          apiLoaded={apiLoaded}
          
         />
         <OpportunityGrid

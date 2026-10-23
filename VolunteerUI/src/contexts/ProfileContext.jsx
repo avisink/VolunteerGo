@@ -41,7 +41,6 @@ const fetchProfile = async () => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            firebaseUid: user.uid,
             username: user.displayName || "Anonymous",
             name: user.displayName || null,
           }),
