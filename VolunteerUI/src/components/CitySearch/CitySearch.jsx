@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import "./CitySearch.css"
 function CitySearch({ value = '' , onSelect }) {
   const [results, setResults] = useState([]);

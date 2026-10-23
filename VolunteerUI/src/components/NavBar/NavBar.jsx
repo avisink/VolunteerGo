@@ -11,8 +11,8 @@ function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const isHomePage = location.pathname === "/";
-  const { user, isSignedIn, isLoaded } = useAuth();
-  const { profile, loading, refreshProfile } = useProfile();
+  const { isSignedIn, isLoaded } = useAuth();
+  const { profile, loading } = useProfile();
   const [showGif, setShowGif] = useState(false)
   const points =profile?.points;
 

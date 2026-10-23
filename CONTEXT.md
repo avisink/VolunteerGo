@@ -4,33 +4,34 @@ Running notes on this codebase — quirks, gotchas, and things worth knowing tha
 
 ## Current status / session handoff
 
-_Last updated 2026-10-22. Start here in a new session; overwrite this section as things change, don't append._
+_Last updated 2026-10-22 (second session). Start here in a new session; overwrite this section as things change, don't append._
 
 **Where things stand**
 - Working branch: `context-setting` (the user prefers committing here and opening PRs from it). PRs go to the **fork's** `main`: `gh pr create -R avisink/VolunteerGo --base main`. Never target `ftl-pod/VolunteerGo`.
-- PR #1 (context docs) and PR #2 (API test suite, `app.js`/`server.js` split, READMEs, documentation rule) are **merged**.
-- **PR #3 is open:** GitHub Actions CI, API auth tests, VolunteerSearch tests, D-UI-001 docs, CI decision. All three CI jobs were green on its first run.
-- Tests: VolunteerAPI has 10 Jest tests (`tests/opportunities.test.js`, `tests/auth.test.js`); VolunteerSearch has 12 pytest tests; VolunteerUI has none (CI runs lint, non-blocking, then build).
-- The documentation rule in CLAUDE.md is mandatory: every decision gets a full entry (D-API / D-UI / D-SEARCH in service READMEs, repo-wide ones in KEY_DECISIONS.md). Latest IDs: **D-API-004, D-UI-001, D-SEARCH-001**.
+- PRs #1–#3 are merged (context docs; API tests + READMEs + documentation rule; CI + auth/search tests).
+- **PR #4 (this session):** server-side points/levels (D-API-005), UI lint cleanup with blocking lint in CI (D-UI-002), and the advisory Claude PR review workflow + `/pr-review` skill (KEY_DECISIONS.md).
+- Tests: VolunteerAPI has 25 Jest tests (`opportunities`, `auth`, `gamification`); VolunteerSearch has 12 pytest tests; VolunteerUI has none (lint must be error-free, then build).
+- Latest decision IDs: **D-API-005, D-UI-002, D-SEARCH-001**.
 
-**Decisions made this session** (details in the decision logs)
-- D-API-001 to 004: split `app.js`/`server.js`; Jest + Supertest; mock Prisma and Firebase in tests; turn off morgan under `NODE_ENV=test`.
-- D-UI-001: the `/map` page is a **stretch feature**. Its code and dependencies stay, and the Google Maps/Geocode keys are removed (~$800 bill). Don't add Google keys back.
-- D-SEARCH-001: pytest on the keyword-only (`ENV=production`) path with a light `requirements-test.txt`.
-- KEY_DECISIONS.md: CI on GitHub Actions, one job per service, no secrets.
+**Decisions made in the second session**
+- D-API-005: points are awarded by the apply endpoint on the server (opportunity's `points`, default 10). The level is recomputed in the same transaction. `PUT /users/points` is gone. Apply now requires auth and must be for yourself.
+- D-UI-002: lint errors fixed (including a mousemove re-render storm in HomeHero and a dead user download in ProfilePage), `react-refresh` rule off for `contexts/`/`hooks/`, lint blocking in CI. 7 `exhaustive-deps` warnings left on purpose.
+- KEY_DECISIONS "PR review: Claude-rated, advisory": `.github/workflows/pr-review.yml` + `.claude/skills/pr-review/SKILL.md`.
+- The user also has a **user-level `/skillify` skill** (`~/.claude/skills/skillify/`, not in this repo). It scans transcripts for asks made 3+ times and proposes parameterized skills.
 
-**Waiting on the user** (full checklist under "Pending setup" below)
-- Creating a **new Firebase project** and a **Supabase** database on their own accounts. The user will say when they're ready, then Claude: adds `directUrl` to `schema.prisma` (plus a decision entry), runs `prisma migrate deploy` + `node seed.js`, starts all three services locally to verify, and records the Supabase/hosting move in KEY_DECISIONS.md.
-- Deciding hosting for the API, search and frontend (Supabase can't run the servers).
-- Optional: enable branch protection on `main` requiring the three CI checks (repo Settings → Branches).
-- Merging PR #3.
+**Waiting on the user**
+- Add the **`ANTHROPIC_API_KEY` repo secret** to turn on PR review (it skips without it; costs API money per PR push).
+- Creating a **new Firebase project** and a **Supabase** database (checklist under "Pending setup" below). When ready, Claude adds `directUrl` to `schema.prisma` (plus a decision entry), runs `prisma migrate deploy` + `node seed.js`, starts all three services to verify, and records the Supabase/hosting move in KEY_DECISIONS.md.
+- Deciding hosting for the API, search and frontend.
+- Optional: branch protection on `main` requiring the three `ci.yml` checks (not PR review, which is advisory).
 
-**Suggested next tasks** (user hasn't picked yet)
-1. Compute points/levels on the server instead of trusting `PUT /users/points` from the client (API README → Known issues).
-2. Fix the 36 UI lint errors, then remove `continue-on-error` from the `ui` CI job.
-3. Supabase + Firebase setup (blocked on the user, see above).
-4. Smaller fixes noted in the READMEs: VolunteerSearch `/search` 500 when there are no opportunities; `requests` missing from `requirements.txt`; `npm run seed` misconfigured; unmounted chat route; unauthenticated write endpoints.
-5. Later: integration tests against a real Postgres in CI; UI component tests; rebuild the map on a free provider (alternatives below).
+**Suggested next tasks**
+1. Move **badge awarding** to the server too (`POST /badges/give` is unauthenticated and called from `utils/badgeService.js`), same pattern as D-API-005.
+2. Add auth to the remaining write endpoints (opportunities/organizations/badges CRUD, `DELETE /users/:id`, save/unsave).
+3. Fix the 7 `exhaustive-deps` warnings one at a time with manual browser testing.
+4. Smaller fixes: VolunteerSearch `/search` 500 with no opportunities; `requests` missing from `requirements.txt`; `npm run seed` misconfigured; unmounted chat route.
+5. Supabase + Firebase setup (blocked on the user).
+6. Later: integration tests against real Postgres in CI; UI component tests; free-provider map.
 
 **Environment notes for Claude**
 - The user's npm config blocks package install scripts (`allowScripts`). Don't approve them; tests don't need them. CI uses `npm ci --ignore-scripts`.
@@ -74,7 +75,7 @@ The map page is a stretch feature: its code is kept, but its Google keys are rem
 
 ## Known quirks
 
-- **`VolunteerUI` lint fails on existing code**: `npm run lint` reports 36 errors and 7 warnings (as of 2026-10-22), none from recent changes. CI runs lint as **non-blocking** until they're fixed (KEY_DECISIONS.md, CI entry). Breakdown: 29 `no-unused-vars`, 5 `react-refresh/only-export-components`, 2 `no-empty`, plus 8 `react-hooks/exhaustive-deps` warnings. Once clean, remove `continue-on-error` from the `ui` job.
+- **`VolunteerUI` lint has 7 known warnings** (`react-hooks/exhaustive-deps`) and 0 errors since D-UI-002. Errors fail CI. Don't "fix" a warning by adding a dependency without checking for refetch loops in the browser.
 - **`VITE_CLERK_PUBLISHABLE_KEY` is required even though Clerk is unused**: `VolunteerUI/src/main.jsx` throws `Missing Publishable Key` at startup without it, so the UI won't render. Set any placeholder value locally. Removing the check counts as touching Clerk/auth wiring, so ask first (KEY_DECISIONS.md).
 - **`Chat` field naming mismatch**: `VolunteerAPI/chatModel/chatModel.js` reads/writes `conversationID` in its Prisma calls, but the `Chat` model in `prisma/schema.prisma` defines the field as `conversationId`. Verify which is actually correct (or whether this is silently broken) before touching chat persistence.
 - **`@clerk/*` packages are unused**: they're listed in `package.json` for both `VolunteerAPI` and `VolunteerUI`, but nothing imports them (only the leftover env-var check in `main.jsx` remains, see above) — Firebase is the real auth system. See KEY_DECISIONS.md.
@@ -84,5 +85,5 @@ The map page is a stretch feature: its code is kept, but its Google keys are rem
 ## Open questions / things to verify
 
 - **Chat endpoint is unmounted**: `VolunteerAPI/routes/chatRoutes.js` defines `POST /` → `chatHandler`, but `app.js` (formerly `server.js`) never does `app.use("/chat", ...)`, so it's unreachable. Intentional (feature shelved) or an oversight? Combined with the `conversationID`/`conversationId` mismatch above, chat may be fully dead code.
-- **Most VolunteerAPI write endpoints are unauthenticated**: create/update/delete for opportunities, organizations and badges, `DELETE /users/:id`, and the save/apply routes take no token. Intentional for development, or a gap to close? Relevant to the SRS's security requirements, if it has any.
+- **Most VolunteerAPI write endpoints are unauthenticated**: create/update/delete for opportunities, organizations and badges, `DELETE /users/:id`, and the save/unsave routes take no token (apply is protected since D-API-005). Intentional for development, or a gap to close? Relevant to the SRS's security requirements, if it has any.
 - **`npm run seed` likely doesn't work**: it runs `npx prisma db seed`, but `VolunteerAPI/package.json` has no `"prisma": { "seed": "node seed.js" }` block, so Prisma has no seed command to run. `node seed.js` works directly. Should the config be added, or the script changed to `node seed.js`?

@@ -2,12 +2,10 @@ import { useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import DraggableCard from '../DraggableCard/DraggableCard';
 import PopupPill from '../PopupPill/PopupPill';
-import { useAuth } from "../../hooks/useAuth";
 
 const OpportunityPage = () => {
   const { id } = useParams();
   const [opps, setOpps] = useState([]);
-  const {isSignedIn, isLoaded} = useAuth();
 
   useEffect(() => {
     const fetchOpps = async () => {

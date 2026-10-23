@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const admin = require('../firebase/firebaseAdmin');
 const { connect } = require('../routes/userRoutes');
 const sgMail = require('@sendgrid/mail');
+const { getLevelFromPoints, pointsForOpportunity } = require('../lib/gamification');
 sgMail.setApiKey(process.env.VITE_SENDGRID_API_KEY);
 
 exports.getAllUsers = async (req, res) => {
@@ -129,31 +130,6 @@ exports.getUserByFirebaseUid = async (req, res) => {
   }
 };
 
-// Points and Level
-exports.updateUserPoints = async (req, res) => {
-  try {
-    const firebaseUid = req.user.uid;
-    const { points, level } = req.body;
-
-    if (!firebaseUid || points === undefined || level === undefined) {
-      return res.status(400).json({ error: "Missing user ID, points, or level." });
-    }
-
-    const user = await prisma.user.update({
-      where: { firebaseUid },
-      data: {
-        points,
-        level,
-      },
-    });
-
-    res.json({ success: true, user });
-  } catch (error) {
-    console.error("Error Updating User Points ", error);
-    return res.status(500).json({ error: "Failed to update user points." });
-  }
-};
-
 // Send information to database and firebase 
 exports.onboarding = async (req, res) => {
   const firebaseUid = req.user.uid; // comes from token middleware
@@ -164,18 +140,16 @@ exports.onboarding = async (req, res) => {
     training,
     location,
     age,
-    points,
-    level,
     interests,
     avatarUrl
-  } = req.body;
+  } = req.body; // points and level are never taken from the client (D-API-005)
 
   try {
     const existingUser = await prisma.user.findUnique({ where: { firebaseUid } });
 
     const user = await prisma.user.upsert({
       where: { firebaseUid },
-      update: { name, username, skills, training, location, age, points, level, interests, avatarUrl },
+      update: { name, username, skills, training, location, age, interests, avatarUrl },
       create: {
         firebaseUid,
         name,
@@ -184,8 +158,6 @@ exports.onboarding = async (req, res) => {
         training,
         location,
         age,
-        points,
-        level,
         interests,
         avatarUrl
       },
@@ -302,10 +274,11 @@ exports.getUserOppsById = async (req, res) => {
     }
 };
 
+// Apply to an opportunity. Points and level are worked out here, never sent by the client (D-API-005).
 exports.AddOpportunity = async (req, res) => {
     try {
         const userId = Number(req.params.id);
-        const { opportunityId } = req.body;
+        const opportunityId = Number(req.body.opportunityId);
         if (!opportunityId) {
             return res.status(400).json({error : "Opportunity ID is required"})
         }
@@ -316,15 +289,50 @@ exports.AddOpportunity = async (req, res) => {
         if (!user) {
             return res.status(404).json({error : "User not found"})
         }
-        const updatedUser = await prisma.user.update({
-            where : {id : userId},
-            data : {opportunities : 
-                {connect : {id : opportunityId},
-                }
-            },
-            include: { opportunities: true },
-        })
-        res.json({ success: true, opportunities: updatedUser.opportunities });
+        if (user.firebaseUid !== req.user.uid) {
+            return res.status(403).json({error : "You can only apply as yourself"})
+        }
+        const opportunity = await prisma.opportunity.findUnique({ where : {id : opportunityId} });
+        if (!opportunity) {
+            return res.status(404).json({error : "Opportunity not found"})
+        }
+
+        // Applying twice is allowed but only scores once.
+        if (user.opportunities.some((opp) => opp.id === opportunityId)) {
+            return res.json({
+                success: true,
+                opportunities: user.opportunities,
+                points: user.points,
+                level: user.level,
+                pointsAwarded: 0,
+                leveledUp: false,
+            });
+        }
+
+        const pointsAwarded = pointsForOpportunity(opportunity);
+        const updatedUser = await prisma.$transaction(async (tx) => {
+            const withPoints = await tx.user.update({
+                where : {id : userId},
+                data : {
+                    opportunities : {connect : {id : opportunityId}},
+                    points : {increment : pointsAwarded},
+                },
+            });
+            return tx.user.update({
+                where : {id : userId},
+                data : {level : getLevelFromPoints(withPoints.points)},
+                include: { opportunities: true },
+            });
+        });
+
+        res.json({
+            success: true,
+            opportunities: updatedUser.opportunities,
+            points: updatedUser.points,
+            level: updatedUser.level,
+            pointsAwarded,
+            leveledUp: updatedUser.level > user.level,
+        });
     } catch (error) {
         console.error("Error Adding Opportunity: ", error);
         return res.status(500).json({error : "Internal server error"})

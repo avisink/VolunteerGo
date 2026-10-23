@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import { ProfileProvider } from "../../contexts/ProfileContext";
 import { LeaderboardProvider } from "../../contexts/LeaderboardContext";
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
@@ -20,7 +19,7 @@ import { useAuth } from "../../hooks/useAuth";
 import './App.css'
 
 function App() {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   return (
     <OpportunityProvider>
       <ProfileProvider>

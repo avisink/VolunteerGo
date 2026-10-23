@@ -40,9 +40,9 @@ async checkFirstApplication(userId, userOpportunitiesCount, setBadgeEarned) {
         badgeName: "First Steps",
       });
       if (setBadgeEarned) setBadgeEarned(badge);
-    } else {
     }
   } catch (err) {
+    console.error("Error checking First Steps badge:", err);
   }
 },
 

@@ -1,0 +1,72 @@
+# Advisory AI review of each PR: scores risk, correctness, code quality, tests and
+# docs, and suggests quick wins. The rubric lives in .claude/skills/pr-review/SKILL.md
+# so the same review runs locally as /pr-review. Decision: KEY_DECISIONS.md
+# ("PR review: Claude-rated, advisory"). Kept out of ci.yml so the required checks
+# stay secret-free; this job never blocks a merge.
+name: PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Claude PR review (advisory)
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Empty when the repo has no secret, and on PRs from forks (GitHub withholds
+      # secrets there). Every step below is skipped in that case.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Skip (no ANTHROPIC_API_KEY secret)
+        if: env.ANTHROPIC_API_KEY == ''
+        run: echo "::notice::PR review skipped. Add an ANTHROPIC_API_KEY repository secret to enable it."
+
+      - uses: actions/checkout@v5
+        if: env.ANTHROPIC_API_KEY != ''
+        with:
+          fetch-depth: 0 # the skill diffs against main
+
+      - name: Review with Claude
+        if: env.ANTHROPIC_API_KEY != ''
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          display_report: true
+          prompt: |
+            Follow .claude/skills/pr-review/SKILL.md exactly, in CI mode, with arguments:
+            ${{ github.event.pull_request.number }} --out pr-review.md
+            Reviewed commit: ${{ github.event.pull_request.head.sha }}
+          # Read-only tools plus Write for the report file; --max-turns caps cost per run.
+          claude_args: >-
+            --model claude-opus-5-5
+            --max-turns 40
+            --allowedTools "Read,Glob,Grep,Write,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+
+      # One comment per PR, updated in place on every push (found by its marker line).
+      - name: Post or update the review comment
+        if: env.ANTHROPIC_API_KEY != '' && hashFiles('pr-review.md') != ''
+        run: |
+          marker='<!-- volunteergo-pr-review -->'
+          grep -qF "$marker" pr-review.md || { printf '%s\n%s' "$marker" "$(cat pr-review.md)" > pr-review.md; }
+          repo="${{ github.repository }}"
+          id=$(gh api "repos/$repo/issues/$PR_NUMBER/comments" --paginate \
+                 --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$repo/issues/comments/$id" -F body=@pr-review.md > /dev/null
+          else
+            gh pr comment "$PR_NUMBER" --body-file pr-review.md
+          fi

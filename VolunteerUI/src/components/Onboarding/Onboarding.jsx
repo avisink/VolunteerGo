@@ -10,7 +10,6 @@ import BadgeModal from "../BadgeModal/BadgeModal";
 
 export default function Onboarding() {
   const { user, token, isLoaded } = useAuth();
-  const {profile} = useProfile();
   const navigate = useNavigate();  
   const [currentStep, setCurrentStep] = useState(1);
   const { refreshLeaderboard } = useLeaderboard();
@@ -32,7 +31,7 @@ export default function Onboarding() {
     interests: []
   });
 
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   // Fetch user data from API if user is logged in and data is loaded
   useEffect(() => {
@@ -129,20 +128,6 @@ const avatarUrls = [
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
-
-    const handleArrayInput = (e) => {
-    const { name, value } = e.target;
-
-    const array = value
-        .split(",")
-        .map(item => item.trim())
-        .filter(item => item !== "");
-
-    setFormData(prev => ({
-        ...prev,
-        [name]: array
-    }));
-    };
 
     const handleInterestToggle = (interestId) => {
       setFormData(prev => ({

@@ -26,21 +26,45 @@ Add new entries above the template at the bottom, using the same format.
   4. *Separate workflow files per service with path filters* (only run a service's job when its folder changes). Deferred: faster, but path-filtered required checks are awkward to configure, and the suite is fast enough to run in full.
 - **Decision:** One workflow, `.github/workflows/ci.yml`, triggered on every pull request and on pushes to `main`, with three parallel jobs:
   - **`api`** (Node 24): `npm ci --ignore-scripts`, then `npm test`.
-  - **`ui`** (Node 24): `npm ci --ignore-scripts`, then `npm run lint` (**non-blocking** for now), then `npm run build`.
+  - **`ui`** (Node 24): `npm ci --ignore-scripts`, then `npm run lint` (blocking since 2026-10-22, D-UI-002; it was non-blocking at first), then `npm run build`.
   - **`search`** (Python 3.13): `pip install -r requirements-test.txt`, then `pytest`.
   - Read-only token permissions, npm/pip caching, and superseded runs on the same branch are cancelled.
 - **Why:**
   - Each job matches how that service is actually checked locally.
   - **No secrets are needed.** API tests mock Prisma and Firebase (D-API-003), and search tests stub the API call and skip the embedding model (D-SEARCH-001). This also means CI works on forks and PRs from contributors.
   - `--ignore-scripts` mirrors the local npm setup (install scripts are blocked there) and avoids running third-party install scripts in CI. Nothing the checks need depends on them.
-  - Lint is non-blocking because the UI already has 36 lint errors in existing code across 23 files. Blocking on them would make every PR red until a separate cleanup happens.
+  - Lint started out non-blocking because the UI had 36 lint errors in existing code across 23 files. Blocking on them would have made every PR red until a separate cleanup happened. That cleanup was VolunteerUI D-UI-002 (2026-10-22), and lint has been blocking since then, as the user approved.
 - **Consequences:**
   - CI doesn't exercise a real database, real Firebase, or the search service's embedding (development) mode. Those need integration tests later (a Postgres service container is the likely route).
-  - Lint regressions won't fail PRs until `continue-on-error` is removed. Follow-up: fix the existing lint errors, then make lint blocking.
   - Node 24 and Python 3.13 are pinned in CI. Local versions differ (Node 26 / Python 3.14 on the user's machine), so keep the CI versions in line with whatever the deployment host uses once it's chosen.
   - Making the checks *required* before merging is a GitHub branch-protection setting (repo Settings → Branches), not something in this file.
 - **SRS reference:** _TBD_
-- **Constraint for Claude:** Keep CI free of secrets unless the user approves adding them. Don't make lint blocking or add path filters without asking. When adding tests to a service, make sure its CI job still runs them; update this entry if the job structure changes.
+- **Constraint for Claude:** Keep `ci.yml` free of secrets (the only approved exception is the separate PR review workflow below). Don't make lint warnings blocking or add path filters without asking. When adding tests to a service, make sure its CI job still runs them; update this entry if the job structure changes.
+
+---
+
+## PR review: Claude-rated, advisory
+
+- **Date:** 2026-10-22
+- **Status:** Accepted
+- **Context:** The user wanted every PR scanned and rated on risk and code quality, with suggestions for small improvements. The existing CI only says pass/fail, and this repo has rules a linter can't check, mainly the mandatory documentation rule in CLAUDE.md. The user also wanted the same review available locally before opening a PR.
+- **Options considered:**
+  1. *Static tools only* (SonarCloud, CodeClimate, CodeQL). Good at metrics and known vulnerability patterns, but they can't judge risk in context, check the decision-log rule, or suggest fixes the way the user asked. They also need another account. Not chosen, but CodeQL could be added alongside later.
+  2. *A hosted AI review app* (CodeRabbit, Copilot code review, Claude Code's built-in GitHub review). Easy to set up, but the rubric lives outside the repo and can't be run locally the same way.
+  3. *`anthropics/claude-code-action` running a rubric that lives in the repo as a skill* (`.claude/skills/pr-review/SKILL.md`). **Chosen.**
+- **Decision:**
+  - The rubric lives in `.claude/skills/pr-review/SKILL.md`: scores from 1 to 5 for **Risk, Correctness, Code quality, Tests and Docs**, an overall verdict (ready / merge after fixes / needs work), findings with `file:line` and a concrete failure scenario, and up to ~5 **quick wins** with small diffs. Run it locally as `/pr-review [PR# | branch]`.
+  - `.github/workflows/pr-review.yml` (separate from `ci.yml`) runs it on non-draft PRs (opened, synchronize, reopened, ready_for_review) using `anthropics/claude-code-action@v1`, model `claude-opus-5-5`, `--max-turns 40`, and **read-only tools** plus `Write` for the report file. A shell step then posts or updates **one sticky comment** per PR, found by its `<!-- volunteergo-pr-review -->` marker.
+  - It needs an **`ANTHROPIC_API_KEY` repository secret**. Without one (including on PRs from forks, which GitHub doesn't give secrets to) every step is skipped with a notice, and the job still passes.
+  - **Advisory only:** it must not be added as a required check, and a bad score doesn't fail the job.
+- **Why:** The rubric is versioned with the code, so a PR can update the rules it's reviewed by. It's the same review locally and in CI. A separate workflow keeps the three required checks secret-free and reproducible.
+- **Consequences:**
+  - **It costs API money on every push to a PR** (roughly a few cents to tens of cents per run, depending on diff size). To cut costs, switch `--model` to `claude-sonnet-5-5` or trigger on a `review` label instead of every push.
+  - AI reviews can be wrong. Treat findings as suggestions, and tune the skill when it's consistently off.
+  - The key is a repo secret. Workflows triggered by `pull_request` from forks can't read it, which is intended (don't switch to `pull_request_target`, which would run fork code with secrets).
+  - Follow-up: the user has to add the secret (repo Settings → Secrets and variables → Actions → `ANTHROPIC_API_KEY`).
+- **SRS reference:** _TBD_ (quality assurance / process)
+- **Constraint for Claude:** Don't make this job blocking or required, don't widen its tool permissions to write or push, and don't change the trigger to `pull_request_target` without asking. Change review criteria in the skill file, not the workflow prompt.
 
 ---
 

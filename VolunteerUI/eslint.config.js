@@ -26,4 +26,11 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Each context/hook file exports its Provider together with its use* hook on purpose (D-UI-002).
+    files: ['src/contexts/**/*.{js,jsx}', 'src/hooks/**/*.{js,jsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

@@ -1,38 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import './HomeHero.css';
 import { useNavigate } from 'react-router-dom';
-import arrowAnimation from "../../assets/arrowAnimation.gif";
 
 export default function HomeHero() {
-  const [sparkles, setSparkles] = useState([]);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const navigate = useNavigate();
-
-  // Create sparkles on mouse movement
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
-      
-      if (Math.random() > 0.92) {
-        const newSparkle = {
-          id: Date.now() + Math.random(),
-          x: e.clientX,
-          y: e.clientY,
-          size: Math.random() * 6 + 3,
-          color: Math.random() > 0.5 ? '#7ea68a' : '#a8916b'
-        };
-        
-        setSparkles(prev => [...prev.slice(-10), newSparkle]);
-        
-        setTimeout(() => {
-          setSparkles(prev => prev.filter(s => s.id !== newSparkle.id));
-        }, 2000);
-      }
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
 
   const handleCTAClick = (e) => {
     e.preventDefault();
@@ -122,32 +93,11 @@ export default function HomeHero() {
         </svg>
       </div>
 
-      {/* Mouse Sparkles
-      {sparkles.map(sparkle => (
-        <div
-          key={sparkle.id}
-          className="mouse-sparkle"
-          style={{
-            left: sparkle.x,
-            top: sparkle.y,
-            width: sparkle.size,
-            height: sparkle.size,
-            background: sparkle.color,
-            boxShadow: `0 0 ${sparkle.size * 2}px ${sparkle.color}`
-          }}
-        />
-      ))} */}
-
       {/* Main Content */}
       <div className="hero-content">
         <h1 className="hero-title">VolunteerGo</h1>
         <p className="hero-subtitle">
           Do good, level up
-          {/* <img
-            src={arrowAnimation}
-            alt="level-up"
-            className="hero-level-up"
-          /> */}
         </p>
 
         <button href="#" className="hero-cta" onClick={handleCTAClick}>

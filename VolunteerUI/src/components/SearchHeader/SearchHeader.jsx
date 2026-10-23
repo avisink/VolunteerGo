@@ -10,7 +10,6 @@ function SearchHeader({
   onClear,
   tags = [],
   skills = [],
-  apiLoaded,
 }) {
   const [searchTerm, setSearchTerm] = useState(filters.searchTerm || "");
   const [city, setCity] = useState(filters.city || "");

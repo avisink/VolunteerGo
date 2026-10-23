@@ -7,10 +7,9 @@ import { useLeaderboard } from "../../contexts/LeaderboardContext";
 import badgeService from '../../utils/badgeService';
 import BadgeModal from "../BadgeModal/BadgeModal";
 import './ApplyModal.css';
-import { getLevelData } from "../ProgressBar/ProgressBar";
 import PopupPill from '../PopupPill/PopupPill';
 
-function ApplyModal({ isOpen, onClose, applicant, opportunity, setShowApplied, setShowAnimation }) {
+function ApplyModal({ isOpen, onClose, opportunity, setShowApplied, setShowAnimation }) {
   const [message, setMessage] = useState('');
   const [name, setName] = useState('');
   const [applyLoading, setApplyLoading] = useState(false);
@@ -22,7 +21,6 @@ function ApplyModal({ isOpen, onClose, applicant, opportunity, setShowApplied, s
   const { profile, refreshProfile } = useProfile();
   const { user, token } = useAuth();
   const { refreshLeaderboard } = useLeaderboard();
-  const points = profile?.points || 0;
 
   // Close modal only after all badge modals are done
   useEffect(() => {
@@ -74,25 +72,7 @@ function ApplyModal({ isOpen, onClose, applicant, opportunity, setShowApplied, s
 
 
     try {
-      const oldPoints = profile?.points || 0;
-      const oldLevel = getLevelData(oldPoints).level;
-
-      // Update points and level
-      const pointsUrl = `${import.meta.env.VITE_API_BASE_URL}/users/points`;
-      const updatedPoints = points + 10;
-      const updatedLevel = getLevelData(updatedPoints).level;
-
-      const pointsRes = await fetch(pointsUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-          body: JSON.stringify({ points: updatedPoints, level: updatedLevel }),
-      });
-      if (!pointsRes.ok) throw new Error("Failed to update points");
-
-      // Update user opportunities
+      // Apply. The API awards the points and recomputes the level (VolunteerAPI D-API-005).
       const userOpportunitiesCount = profile.opportunities?.length || 0;
       const oppUrl = `${import.meta.env.VITE_API_BASE_URL}/users/${profile.id}/opportunities/add`;
       const oppRes = await fetch(oppUrl, {
@@ -104,6 +84,7 @@ function ApplyModal({ isOpen, onClose, applicant, opportunity, setShowApplied, s
         body: JSON.stringify({ opportunityId: opportunity.id }),
       });
       if (!oppRes.ok) throw new Error("Failed to update opportunities");
+      const { leveledUp } = await oppRes.json();
 
       // Badge checks
       await badgeService.checkFirstApplication(user.uid, userOpportunitiesCount, queueBadge);
@@ -116,10 +97,8 @@ function ApplyModal({ isOpen, onClose, applicant, opportunity, setShowApplied, s
       await refreshProfile();
       await refreshLeaderboard();
 
-      const newLevel = getLevelData(updatedPoints).level;
-
-      if (newLevel > oldLevel) {
-        setShouldLevelUp(true);      
+      if (leveledUp) {
+        setShouldLevelUp(true);
       }
       // Confirmation email
       await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/send-confirmation-email`, {

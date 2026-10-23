@@ -55,7 +55,7 @@ Loaded from `VolunteerAPI/.env` via `dotenv`.
 | `npm start` | Start with node |
 | `npm test` | Run the Jest test suite |
 | `node seed.js` | Seed the database. **Deletes all Opportunity, Organization and Badge rows first.** |
-| `node level.js` | Recompute every user's level from their points (manual, not part of the server) |
+| `node level.js` | Backfill: recompute every user's level from their points with the shared formula. Only needed for data written before D-API-005 |
 | `npx prisma migrate dev --name <name>` | Create and apply a migration after editing `schema.prisma` |
 | `npx prisma generate` | Regenerate the Prisma client |
 
@@ -70,13 +70,14 @@ VolunteerAPI/
 ├── routes/             # one router per resource, mounted in app.js
 ├── controllers/        # request handlers; talk to the database via db/db.js
 ├── middleware/auth.js  # verifyFirebaseToken (Firebase) and optionalAuthenticateToken (JWT)
+├── lib/gamification.js # points-per-application and the level curve (the only place they're computed)
 ├── db/db.js            # the single shared PrismaClient
 ├── firebase/           # firebase-admin initialisation (+ serviceAccountKey.json, not committed)
 ├── prisma/             # schema.prisma (source of truth) and migrations/
 ├── chatModel/          # Chat persistence helpers
 ├── opp_scraper/        # Scrapy project that produces opportunity_updated.json for seeding
 ├── seed.js             # seeds organizations, opportunities and badges
-├── level.js            # standalone level backfill script
+├── level.js            # manual level backfill, uses lib/gamification.js
 └── tests/              # Jest + Supertest tests
 ```
 
@@ -116,11 +117,10 @@ Request flow: `server.js` → `app.js` (CORS, logging, JSON parsing) → `routes
 | GET | `/by-uid/:uid` | By Firebase UID |
 | POST | `/` | Create user |
 | GET | `/:id/opportunities` | Applied/joined opportunities |
-| PUT | `/:id/opportunities/add` | Apply to/join an opportunity |
+| PUT | `/:id/opportunities/add` 🔒 | Apply to an opportunity. `:id` must be the caller (403 otherwise). Awards the opportunity's `points` (10 if it has none), recomputes the level, and returns `{ opportunities, points, level, pointsAwarded, leveledUp }`. Applying again awards nothing. See [D-API-005](#d-api-005-compute-points-and-levels-on-the-server) |
 | GET | `/:id/saved-opportunities` | Saved opportunities |
 | POST | `/:id/saved-opportunities/add` | Save |
 | POST | `/:id/saved-opportunities/remove` | Unsave |
-| PUT | `/points` 🔒 | Update the caller's points |
 | POST | `/onboarding` 🔒 | Save onboarding answers |
 | POST | `/send-confirmation-email` 🔒 | SendGrid application confirmation |
 | DELETE | `/:id` | Delete user |
@@ -148,9 +148,12 @@ How they work:
 
 - To test a 🔒 route, mock `firebaseAdmin.js` as `{ auth: () => ({ verifyIdToken: mockVerifyIdToken }) }`. Then make `mockVerifyIdToken` resolve to a fake decoded token (`{ uid: "..." }`) or reject. See `tests/auth.test.js`. The mock function's name must start with `mock` so Jest allows it inside `jest.mock()`.
 
-**Current coverage (10 tests):**
+**Current coverage (25 tests):**
 - `tests/opportunities.test.js`: `GET /opportunities` (list, keyword/city filters, 500 on DB error) and `GET /opportunities/:id` (found, 404).
-- `tests/auth.test.js`: `verifyFirebaseToken` via `PUT /users/points` (no header, non-Bearer header, unverifiable token → 401, verified uid passed to the controller) and the 400 for a missing `points`/`level`.
+- `tests/auth.test.js`: `verifyFirebaseToken` via `PUT /users/:id/opportunities/add` (no header, non-Bearer header, unverifiable token → 401; a verified uid reaches the controller).
+- `tests/gamification.test.js`: the level curve, points per opportunity, and the apply endpoint (awards server-side points, ignores client-sent points/level, no double award, 403 for another user, 404 unknown opportunity, 400 missing id), plus `PUT /users/points` being gone.
+
+To mock `prisma.$transaction`, make it call its callback with the mock client (see the top of `tests/gamification.test.js`).
 
 Everything else is untested so far.
 
@@ -162,8 +165,9 @@ These are also tracked in [CONTEXT.md](../CONTEXT.md).
 
 - **Chat is unreachable.** `routes/chatRoutes.js` is never mounted in `app.js`, and `chatModel.js` uses `conversationID` while the schema says `conversationId`.
 - **`npm run seed` probably doesn't work.** `package.json` has no `prisma.seed` setting, so `prisma db seed` has nothing to run. Use `node seed.js`.
-- **Most write endpoints have no auth.** Creating, updating and deleting opportunities, organizations and badges, `DELETE /users/:id`, and the save/apply routes all accept requests without a token.
-- **Points and levels are trusted from the client.** `PUT /users/points` writes whatever `points` and `level` the request body contains, so a signed-in user can set their own score. The server should calculate points (for example, when an application is accepted) and work out the level with the `level.js` formula.
+- **Most write endpoints have no auth.** Creating, updating and deleting opportunities, organizations and badges, `DELETE /users/:id`, and the save/unsave routes accept requests without a token. (Apply is now protected, D-API-005.)
+- **Two simultaneous applies to the same opportunity can award points twice.** The "already applied?" check runs before the transaction (D-API-005). It's unlikely from the UI (the button is disabled while submitting) and costs at most one extra award.
+- **Badges are still awarded from the client** (`POST /badges/give` has no auth). Same class of problem D-API-005 fixed for points.
 - **`optionalAuthenticateToken` uses a JWT secret, not Firebase,** so it can't validate the tokens the frontend actually sends. It isn't used on any route right now.
 
 ## Decision log
@@ -176,7 +180,7 @@ These were in place before 2026-10-22, and their rationale wasn't written down. 
 
 - **Express + Prisma + PostgreSQL** as the API stack. Rationale not documented.
 - **Firebase Authentication** for identity. See [KEY_DECISIONS.md](../KEY_DECISIONS.md#auth-firebase-is-canonical-not-clerk).
-- **Level computation in a standalone script** (`level.js`) rather than on every points update. Rationale not documented.
+- **Level computation in a standalone script** (`level.js`) rather than on every points update. Rationale not documented. Superseded by [D-API-005](#d-api-005-compute-points-and-levels-on-the-server); `level.js` is now only a backfill.
 - **Seed data comes from a Scrapy scraper** (`opp_scraper/` → `opportunity_updated.json` → `seed.js`). Rationale not documented.
 
 ### D-API-001: Split the Express app from the server entry point
@@ -236,3 +240,29 @@ These were in place before 2026-10-22, and their rationale wasn't written down. 
 - **Rationale:** Readable test and CI output with a one-line change. Development and production logging don't change.
 - **Consequences:** Request logs never show up in test runs. If you're debugging a test, temporarily log inside it.
 - **SRS reference:** _TBD_
+
+### D-API-005: Compute points and levels on the server
+
+- **Date:** 2026-10-22
+- **Status:** Accepted
+- **Context:** Applying to an opportunity worked like this: the UI added 10 to the user's points, computed the level itself, and sent both to `PUT /users/points`, which saved whatever it received. Any signed-in user could send `{ "points": 99999 }` and top the leaderboard. Separately, `PUT /users/:id/opportunities/add` (apply) had **no auth at all**, so anyone could apply on anyone's behalf. The level formula existed twice (`level.js` and the UI's `ProgressBar`), and `onboarding` also accepted `points`/`level` from the body. Gamification is the core of the product, so its numbers need to be trustworthy.
+- **Options considered:**
+  1. *Keep `PUT /users/points` but validate it* (only allow +10, check the level matches). Rejected: the server would still be checking the client's math instead of doing it, and the client could still call it without applying.
+  2. *Award points inside the apply endpoint.* **Chosen.** The action that earns points and the points themselves change together, in one transaction.
+  3. *Award points when an organization accepts the application* (what the old README suggested). Rejected for now: there's no acceptance flow or application status in the data model. Worth revisiting if one is added, since it would reward actual volunteering, not just applying.
+  4. *Store the level as derived only* (compute on read, drop `User.level`). Rejected: the leaderboard, profile and friends views already read `level` from many places. Keeping the column but writing it only on the server gets the safety without touching every reader.
+- **Decision:**
+  - New `lib/gamification.js` holds `getLevelFromPoints` (the existing curve: 15 points to level 2, then 5 more each level) and `pointsForOpportunity`, which uses the opportunity's own `points`, or `DEFAULT_APPLICATION_POINTS` (10) when it's 0. All seeded opportunities have 10, so today's behaviour is unchanged.
+  - `PUT /users/:id/opportunities/add` now requires `verifyFirebaseToken`, returns 403 unless `:id` belongs to the caller, returns 404 for an unknown opportunity, and, in one `$transaction`, connects the opportunity, increments `points`, and sets `level` from the new total. It returns `{ opportunities, points, level, pointsAwarded, leveledUp }`. **Re-applying awards nothing** (`pointsAwarded: 0`).
+  - `PUT /users/points` and `updateUserPoints` are **removed**. `POST /users/onboarding` ignores `points` and `level` in the body.
+  - `level.js` uses the shared helper and is now CommonJS. Its `import` syntax couldn't run in this package before.
+  - The UI (`ApplyModal`) no longer computes or sends points. It reads `leveledUp` from the response to trigger the level-up animation. `ProgressBar.getLevelData` stays for display only, with a comment pointing here.
+- **Rationale:** The server is the only party that can be trusted with a score. Tying the award to the apply action removes the separate endpoint and makes the award idempotent. Using the opportunity's own `points` field (which already existed and was seeded) lets some opportunities be worth more later with no code change.
+- **Consequences / trade-offs:**
+  - **Breaking API change:** clients calling `PUT /users/points` now get 404, and apply needs a bearer token. The only caller of each was `ApplyModal`, updated in the same change.
+  - The UI's progress bar still uses its own copy of the curve. If the curve changes, update both, or expose level progress from the API.
+  - The duplicate-apply check happens before the transaction, so two simultaneous requests could both award points (see Known issues). A unique "application" row would fix this properly.
+  - Badges are still granted by client calls to an unauthenticated `POST /badges/give`. That's the obvious next fix of the same kind.
+  - Points for things other than applying (e.g. attending) would need new server-side award points, not a general "set points" endpoint.
+- **SRS reference:** _TBD_ (gamification: points, levels, leaderboard integrity)
+

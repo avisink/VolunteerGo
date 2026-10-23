@@ -16,17 +16,14 @@ const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) =
   const [startX, setStartX] = useState(0);
   const [startY, setStartY] = useState(0);
   const [currentX, setCurrentX] = useState(0);
-  const [currentY, setCurrentY] = useState(0);
-  const [dragDistanceX, setDragDistanceX] = useState(0);
-  const [dragDistanceY, setDragDistanceY] = useState(0);
+  const [, setCurrentY] = useState(0);
   const cardRef = useRef(null);
-  const { user, isSignedIn } = useAuth();
-  const [direct, setDirect] = useState("search") // update for application functionality
+  const { isSignedIn } = useAuth();
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const { profile, setProfile } = useProfile();
   const prismaUserId = profile?.id;
   const savedOpps = profile?.savedOpportunities?.map((opp) => opp.id) || [];
-  const [savingOppId, setSavingOppId] = useState(null);
+  const [savingOppId] = useState(null);
   const [loadingSave, setLoadingSave] = useState({});
   const [imageUrl, setImageUrl] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
@@ -58,8 +55,6 @@ const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) =
     setCurrentY(clientY);
     const distanceX = clientX - startX;
     const distanceY = clientY - startY;
-    setDragDistanceX(distanceX);
-    setDragDistanceY(distanceY);
     
     if (cardRef.current) {
       cardRef.current.style.transform = `translate(${distanceX}px, ${distanceY}px)`;
@@ -72,7 +67,6 @@ const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) =
     
     setIsDragging(false);
     const distanceX = currentX - startX;
-    const distanceY = currentY - startY;
     const threshold = 150;
     
     if (Math.abs(distanceX) > threshold) {
@@ -100,8 +94,6 @@ const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) =
       }
     }
     
-    setDragDistanceX(0);
-    setDragDistanceY(0);
   };
 
   // Mouse events

@@ -17,11 +17,9 @@ router.get("/:id/opportunities", controller.getUserOppsById); // get user's opps
 
 router.post("/:id/saved-opportunities/add", controller.addSavedOpportunity); // add saved opportunity for user
 
-router.put("/:id/opportunities/add", controller.AddOpportunity); // add opportunity 
+router.put("/:id/opportunities/add", verifyFirebaseToken, controller.AddOpportunity); // apply; awards points and recomputes level 
 
 router.post("/:id/saved-opportunities/remove", controller.removeSavedOpportunity); // remove saved opportunity for user
-
-router.put("/points",  verifyFirebaseToken, controller.updateUserPoints); // update user's points
 
 router.delete("/:id", controller.deleteUser); // delete user 
 

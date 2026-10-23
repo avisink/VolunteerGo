@@ -41,7 +41,7 @@ npm run build     # production build
 npm run lint      # ESLint
 npm run preview   # preview a production build
 ```
-There is no test suite in `VolunteerUI`.
+There is no test suite in `VolunteerUI`. Lint must have 0 errors (CI blocks on them).
 
 ### VolunteerAPI (backend)
 ```bash
@@ -73,7 +73,9 @@ pytest tests/test_search.py -k stop     # tests matching a name
 ```
 
 ### CI
-`.github/workflows/ci.yml` (GitHub Actions) runs on every PR and on pushes to `main`, with three parallel jobs and no secrets: `api` (`npm test`), `ui` (lint, non-blocking, then `npm run build`), and `search` (`pytest`). When adding tests or changing how a service is built, make sure its CI job still covers it. Rationale is in KEY_DECISIONS.md.
+`.github/workflows/ci.yml` (GitHub Actions) runs on every PR and on pushes to `main`, with three parallel jobs and no secrets: `api` (`npm test`), `ui` (`npm run lint`, where errors block and warnings don't, then `npm run build`), and `search` (`pytest`). When adding tests or changing how a service is built, make sure its CI job still covers it.
+
+`.github/workflows/pr-review.yml` is a separate, **advisory** Claude review of each PR. It needs an `ANTHROPIC_API_KEY` secret and skips without one. Its rubric is `.claude/skills/pr-review/SKILL.md`, which also runs locally as `/pr-review`. Change review criteria there. Rationale for both workflows is in KEY_DECISIONS.md.
 
 ### Running the full stack locally
 All three processes are started independently and talk to each other over HTTP — run each `dev`/`uvicorn` command above in its own terminal. `VolunteerSearch` needs `VolunteerAPI` to be running so it can fetch `/opportunities` on startup.
@@ -104,7 +106,7 @@ Note: the README describes search as "OpenAI embeddings", but `VolunteerSearch` 
 
 Auth (`middleware/auth.js`) is **Firebase**: `verifyFirebaseToken` verifies a Firebase ID token via `firebase-admin` (`firebase/firebaseAdmin.js`) and attaches the decoded token to `req.user`; `optionalAuthenticateToken` is a separate, JWT-based (not Firebase) guest-optional variant. See KEY_DECISIONS.md before touching auth.
 
-Gamification logic: `level.js` is a standalone script (run manually, not wired into `server.js`) that recomputes every user's level from their points using an incrementing point-threshold curve and backfills `User.level`; apply the same formula if levels need to be computed elsewhere. Badges are awarded through `badgeController.js`/`Badge` model rather than computed on the fly.
+Gamification logic: points and levels are computed **only on the server**, in `lib/gamification.js` (D-API-005). Applying to an opportunity (`PUT /users/:id/opportunities/add`, 🔒) awards the opportunity's points and recomputes the level in one transaction. Never add an endpoint that lets the client set points or level. `level.js` is a manual backfill that uses the same helper. Badges are awarded through `badgeController.js`/`Badge` model rather than computed on the fly.
 
 `opp_scraper/` is a separate Scrapy project used to scrape opportunity listings into `opportunity_updated.json`, which `seed.js` reads to populate `Organization`/`Opportunity` rows (deduplicating organizations by name) when seeding the database.
 

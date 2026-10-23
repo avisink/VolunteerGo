@@ -10,7 +10,7 @@ import { useOpportunity } from '../../contexts/OpportunityContext';
 import PopupPill from '../PopupPill/PopupPill';
 
 function OpportunityGrid({ searchResults, overrideOpportunities = null }) {
-  const { user, isSignedIn } = useAuth();
+  const { isSignedIn } = useAuth();
   const { profile, setProfile } = useProfile();
   const { opportunities, loading, fetchOpportunities } = useOpportunity();
 
@@ -370,7 +370,6 @@ useEffect(() => {
         <ApplyModal
           isOpen={isApplyModalOpen}
           onClose={handleCloseModal}
-          applicant={user?.firstName || user?.fullName || "Anonymous"}
           opportunity={selectedOpportunity}
           setShowApplied={setShowApplied}
           setShowAnimation={setShowAnimation}

@@ -9,7 +9,7 @@ import { BsBookmark } from "react-icons/bs";
 
 function SavedPage() {
   const { profile, setProfile } = useProfile();
-  const [showModal, setShowModal] = useState(false);
+  const [, setShowModal] = useState(false); // RemoveModal is commented out below
   const [oppToRemove, setOppToRemove] = useState(null);
   const [removing, setRemoving] = useState(false); // loading state
   const [smartSuggestions, setSmartSuggestions] = useState([]);
