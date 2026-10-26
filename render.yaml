@@ -7,6 +7,7 @@ services:
   # VolunteerAPI (Express + Prisma). The database is Supabase, not Render.
   - type: web
     name: volunteergo-api
+    region: oregon # same area as the Supabase database (aws us-west-2); keeps query latency low
     runtime: node
     plan: free
     rootDir: VolunteerAPI
@@ -33,6 +34,7 @@ services:
   # VolunteerSearch (FastAPI), keyword-only mode so it fits 512 MB.
   - type: web
     name: volunteergo-search
+    region: oregon # same area as the Supabase database (aws us-west-2); keeps query latency low
     runtime: python
     plan: free
     rootDir: VolunteerSearch

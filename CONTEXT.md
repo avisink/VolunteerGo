@@ -8,7 +8,7 @@ _Last updated 2026-10-23. Start here in a new session; overwrite this section as
 
 **Where things stand**
 - Working branch: `context-setting` (the user prefers committing here and opening PRs from it). PRs go to the **fork's** `main`: `gh pr create -R avisink/VolunteerGo --base main`. Never target `ftl-pod/VolunteerGo`.
-- PRs #1–#3 are merged. **PR #4** (server points D-API-005, lint D-UI-002, Copilot PR review) was open and green at the start of 2026-10-23. The badges/auth/hosting work below was committed on top of it, so it's in PR #4 unless #4 was merged first.
+- PRs #1–#4 are merged (#4: server points/badges/auth, lint, Copilot review, Render config).
 - Tests: VolunteerAPI has **44** Jest tests (`opportunities`, `auth`, `gamification`, `access`); VolunteerSearch has 12 pytest tests; VolunteerUI has none (lint must be error-free, then build).
 - Latest decision IDs: **D-API-008, D-UI-002, D-SEARCH-002**. KEY_DECISIONS.md has entries for auth, CI, PR review (Claude superseded → Copilot) and hosting.
 
@@ -19,14 +19,19 @@ _Last updated 2026-10-23. Start here in a new session; overwrite this section as
 - D-SEARCH-002: `requirements-prod.txt` (no PyTorch) and CORS from `FRONTEND_URL`.
 - KEY_DECISIONS "Hosting": Render free tier for all three services via `render.yaml`, Supabase for the DB, new Firebase project, all on the user's accounts.
 
-**Waiting on the user** (steps below)
-1. Merge PR #4.
-2. Firebase + Supabase setup, then tell Claude. Claude then runs `npx prisma migrate deploy` + `npm run seed`, starts all three services locally, and tests sign-up → onboarding (Newcomer badge) → apply (points, level, badges) → save.
-3. Then the Render deploy.
-4. Copilot code review ruleset (and optionally "require status checks" on `main`).
+**Setup status (2026-10-23)**
+- ✅ New Firebase project **`volunteer-go`** (service key + UI web config) and Supabase (`aws-1-us-west-2` pooler). Migrations applied; seeded with 260 organizations, 304 opportunities, 7 badges.
+- ✅ Verified end to end with real services via the local API (throwaway users, cleaned up afterwards): sign-in, user creation, onboarding Newcomer badge, apply points/level/badges, no double award, 403/401 access rules, save, friend request + Connector badge, search loading 304 opportunities.
+- ⚠️ API writes are slow from local (1–5 s per apply/accept): several sequential queries per request to a us-west-2 database. Worth measuring again once deployed (Render's region should match Supabase's).
+
+**Waiting on the user**
+1. Try the UI in a browser (`npm run dev` in all three services) and sign up for real. Then set `ADMIN_UIDS` to their UID if they want admin rights.
+2. The Render deploy (steps below; pick the **Oregon** region to match Supabase's us-west-2).
+3. Copilot code review ruleset (and optionally "require status checks" on `main`).
+4. Optional `.env` cleanup in `VolunteerAPI/.env` (leftover `FIREBASE_SERVICE_ACCOUNT`, `VITE_GOOGLE_*`, `VITE_FIREBASE_*`, `VITE_API_BASE_URL`; nothing reads them locally).
 
 **Suggested next tasks for Claude**
-1. After setup: the end-to-end local check above, then help with the Render deploy.
+1. Help with the Render deploy, then re-run the end-to-end check against the deployed URLs.
 2. Fix the 7 `exhaustive-deps` warnings one at a time, with browser testing.
 3. Smaller fixes: VolunteerSearch `/search` 500 with no opportunities; unmounted chat route; friend accept not atomic.
 4. Later: integration tests against real Postgres in CI; UI component tests; free-provider map.
@@ -38,7 +43,7 @@ _Last updated 2026-10-23. Start here in a new session; overwrite this section as
 
 ## Pending setup (waiting on the user)
 
-Status as of 2026-10-23. `VolunteerAPI/firebase/serviceAccountKey.json` and `VolunteerUI/.env` still point at the teammate's **`ftlcapstone`** Firebase project, and `DATABASE_URL` still points at the dead Render database. All secret files are gitignored.
+Firebase and Supabase (steps 1–3) were **done 2026-10-23**; the steps are kept for reference and for teammates. Render (step 4) is still pending. All secret files are gitignored.
 
 **1. Firebase (new project, free Spark plan)**
 1. [console.firebase.google.com](https://console.firebase.google.com) → **Create a project** (e.g. `volunteergo`). Google Analytics isn't needed.
