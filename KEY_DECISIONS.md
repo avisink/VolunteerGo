@@ -121,6 +121,27 @@ Add new entries above the template at the bottom, using the same format.
 
 ---
 
+## Pull requests: small, one change each
+
+- **Date:** 2026-11-16
+- **Status:** Accepted
+- **Context:** Earlier PRs bundled several unrelated changes (for example server-side badges, auth on every write and the Render config in one PR). Large PRs are slow to review, hide mistakes, and can't be reverted without also reverting the unrelated parts. The feature-gate work (one gate per feature) made this concrete: each gate should be reviewable and revertable on its own.
+- **Options considered:**
+  - *One PR per task, however big.* Rejected: this is what made earlier reviews hard.
+  - *One PR with one commit per change.* Rejected: commits can be reverted one at a time, but the review is still one large diff, and Copilot code review comments on the whole PR.
+  - *One small PR per change, each on its own branch, stacked when they depend on each other.* Chosen.
+- **Decision:** Every PR does one thing. A multi-part task becomes several PRs on separate branches. Dependent PRs are stacked: the later PR's base is the earlier PR's branch, so its diff shows only its own change.
+- **Why:** Small diffs get real reviews, CI failures point at one change, and any single change can be reverted alone.
+- **Consequences:**
+  - More PRs and branches to keep track of. Stacked PRs must be merged in order, bottom first; after the bottom one merges, GitHub retargets the next one to `main` (if the merged branch is deleted) or it has to be retargeted by hand.
+  - With squash merges, a stacked branch may need `main` merged into it after the PR below it lands, to drop the already-merged commits from its diff.
+  - Each PR still needs its own tests and docs (CLAUDE.md, "Documentation rule"), so docs can't be saved up for a final PR.
+  - There's no hard line limit. "One thing" is the test, not a number.
+- **SRS reference:** _TBD_ (process, not a product requirement)
+- **Constraint for Claude:** Don't bundle unrelated changes into one PR. Split multi-part work into one branch and one PR per part, and stack them when they depend on each other.
+
+---
+
 <!--
 Template for new entries (repo-wide decisions; per-service decisions go in that service's README Decision log, see CLAUDE.md):
 
