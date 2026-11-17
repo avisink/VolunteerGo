@@ -2,7 +2,8 @@
 // Set a flag to false and redeploy to turn that feature off; set it back to true to restore it.
 // VolunteerUI and VolunteerSearch keep a copy of this list: change the same flag there too.
 const featureFlags = {
-  // One `name: true,` line per feature, each with a one-line comment saying what it controls.
+  // /map page (LocationPage). Ships off: no maps API key and known problems (D-UI-001).
+  map: false,
 };
 
 // Always ask through this helper. An unknown name is a typo: it throws outside

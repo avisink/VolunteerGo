@@ -7,7 +7,8 @@ and redeploy to turn that feature off; set it back to True to restore it.
 import os
 
 FEATURE_FLAGS = {
-    # One `"name": True,` line per feature, each with a one-line comment saying what it controls.
+    # /map page (LocationPage). Ships off: no maps API key and known problems (D-UI-001).
+    "map": False,
 }
 
 
