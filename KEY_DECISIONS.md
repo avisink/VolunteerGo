@@ -142,6 +142,32 @@ Add new entries above the template at the bottom, using the same format.
 
 ---
 
+## Feature gates: code-level flags, one file per service
+
+- **Date:** 2026-11-16
+- **Status:** Accepted
+- **Context:** We want to switch off any single user-facing feature when it has a bug, while the rest of the app keeps running. Flags are toggled by editing code and redeploying; an admin UI, a database table and third-party flag services were ruled out by the project owner. A feature usually spans services (API endpoints, UI routes and links, sometimes the search service), and the three services build and deploy separately, each from its own root directory on Render.
+- **Options considered:**
+  - *One physical flags file at the repo root, imported by all three services.* Rejected: each Render service only builds from its own `rootDir`, and one file can't be imported by both JavaScript and Python.
+  - *The UI fetches the flags from the API at page load.* Rejected: truly one file, but every page would wait on the API (up to a minute after a free-tier cold start), and the UI would need a loading state and a fallback for when the API is down.
+  - *One flags file per service with the same flag names and values, and a CI test that fails when they drift.* Chosen. `VolunteerAPI/config/featureFlags.js` is the source of truth; the UI and search service keep copies.
+- **Decision:**
+  - Each service has one flags file and one `isEnabled(flagName)` helper. All code asks through the helper.
+  - A flag that is off means: the API's endpoints for that feature answer 503 through shared middleware; the UI hides the feature's links and entry points and shows a "temporarily unavailable" page on its routes; features that depend on it skip that piece and keep working.
+  - Flags default to on. The exception is `map`, which ships off (the `/map` page has had problems and has no maps key, VolunteerUI D-UI-001).
+  - Authentication, user bootstrap (`GET /users/by-uid`, `POST /users`), onboarding and the app shell are core and are never gated.
+  - Per-service details are in each README's decision log (VolunteerAPI D-API-009).
+- **Why:** It keeps the kill switch in reviewed, versioned code, needs no new infrastructure, and never makes one service wait on another to know what's switched off.
+- **Consequences:**
+  - Switching a feature off means editing the same flag in up to three files and redeploying those services. The sync test catches a missed file in CI.
+  - Between deploys the services can briefly disagree (for example the UI still shows a link whose API answers 503), so the UI must already cope with a 503.
+  - The leaderboard and public profiles have no endpoints of their own (they read `GET /users` and `GET /users/by-uid`, which other features need), so those gates are UI-only.
+  - The chat endpoint has no flag: it isn't mounted. Give it one if it's ever wired up.
+- **SRS reference:** _TBD_ (availability / maintainability)
+- **Constraint for Claude:** Never check a flag any other way than `isEnabled`. Every new feature route gets `requireFeature` (API) or the UI's route gate. Don't gate the core list above. Don't add an admin UI, a flags table, env-var flags or a flag service without asking.
+
+---
+
 <!--
 Template for new entries (repo-wide decisions; per-service decisions go in that service's README Decision log, see CLAUDE.md):
 

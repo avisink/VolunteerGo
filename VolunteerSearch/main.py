@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -7,6 +8,7 @@ import numpy as np
 import os
 from typing import Optional, List
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+from feature_flags import FeatureUnavailable
 
 IS_PRODUCTION = os.getenv("ENV") == "production"
 API_BASE_URL = os.getenv("VITE_API_BASE_URL", "http://localhost:3000")
@@ -83,6 +85,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# A route whose feature flag is off answers 503 with the same body as VolunteerAPI (D-SEARCH-003).
+@app.exception_handler(FeatureUnavailable)
+async def feature_unavailable(request: Request, exc: FeatureUnavailable):
+    return JSONResponse(
+        status_code=503,
+        content={"error": "Feature temporarily unavailable", "feature": exc.flag_name},
+    )
 
 class UserProfile(BaseModel):
     skills: List[str]
