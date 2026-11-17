@@ -165,7 +165,7 @@ How they work:
 
 - To test a 🔒 route, mock `firebaseAdmin.js` as `{ auth: () => ({ verifyIdToken: mockVerifyIdToken }) }`. Then make `mockVerifyIdToken` resolve to a fake decoded token (`{ uid: "..." }`) or reject. See `tests/auth.test.js`. The mock function's name must start with `mock` so Jest allows it inside `jest.mock()`.
 
-**Current coverage (52 tests):**
+**Current coverage (54 tests):**
 - `tests/opportunities.test.js`: `GET /opportunities` (list, keyword/city filters, 500 on DB error) and `GET /opportunities/:id` (found, 404).
 - `tests/auth.test.js`: `verifyFirebaseToken` via `PUT /users/:id/opportunities/add` (no header, non-Bearer header, unverifiable token → 401; a verified uid reaches the controller).
 - `tests/gamification.test.js`: the level curve, points per opportunity, and the apply endpoint (awards server-side points, ignores client-sent points/level, no double award, 403 for another user, 404 unknown opportunity, 400 missing id), plus `PUT /users/points` being gone and `POST /users/onboarding` ignoring client points/level.
@@ -173,6 +173,7 @@ How they work:
 - `tests/access.test.js`: badge rules, badges awarded by apply/onboarding/friend-accept, `POST /badges/give` gone, admin-only catalog writes (401/403/allowed with `ADMIN_UIDS`), public reads, self-only saved/delete routes, `POST /users` taking the UID from the token, and confirmation email going only to the caller.
 
 - `tests/featureFlags.test.js`: `isEnabled` (on, off, unknown name throws outside production and logs in production) and `requireFeature` (passes while on, 503 body while off, other routes untouched, typo fails at route definition). Tests switch a flag by setting it on the exported `featureFlags` object and restoring it afterwards.
+- `tests/featureFlagsSync.test.js`: the other services' copies of the flag list (currently `VolunteerSearch/feature_flags.py`) have exactly the same flags and values as `config/featureFlags.js`. It reads the files as text, so each flag must stay on its own line.
 
 To mock `prisma.$transaction`, make it call its callback with the mock client (see the top of `tests/gamification.test.js`). Tests that need an admin set `process.env.ADMIN_UIDS` and delete it in `beforeEach`.
 

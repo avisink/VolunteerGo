@@ -39,6 +39,16 @@ On Render, `render.yaml` at the repo root sets `ENV=production` and installs `re
 
 Data is only refreshed on **restart**. New opportunities in the API don't show up in search until the service restarts.
 
+## Feature flags
+
+`feature_flags.py` is this service's copy of the flag list in `VolunteerAPI/config/featureFlags.js` (the source of truth), with the same names and values ([D-SEARCH-003](#d-search-003-feature-flags-copied-from-volunteerapi-with-a-503-dependency)). A test in VolunteerAPI (`tests/featureFlagsSync.test.js`) fails when the two differ, so change a flag in both files.
+
+- `is_enabled("flagName")` is the only way code asks about a flag.
+- A gated route declares `dependencies=[Depends(require_feature("flagName"))]`. While the flag is off it answers `503 { "error": "Feature temporarily unavailable", "feature": "<flagName>" }`.
+- A flag name that isn't in the list stops the service from starting (`require_feature`), or raises outside production (`is_enabled`). In production `is_enabled` logs it and counts it as on.
+
+No flags are defined yet; each feature's gate adds its own.
+
 ## Testing
 
 Tests use **pytest** with FastAPI's `TestClient` and live in `tests/`. They need neither VolunteerAPI nor the embedding model.
@@ -53,7 +63,7 @@ How they work:
 - `tests/conftest.py` sets `ENV=production` **before** importing `main`, because `main.py` decides at import time whether to load the model.
 - The `client` fixture replaces `requests.get` with a stub that returns three sample opportunities, then starts the app with `TestClient` as a context manager so the startup step runs. `client_api_down` simulates VolunteerAPI being unreachable.
 
-**Current coverage:** startup loading and text building, behaviour when the API is down, keyword weighting, and `/search` ranking, normalization, location matching, stop words, excluding saved items, and request validation. **Development (embedding) mode is not tested** (see D-SEARCH-001).
+**Current coverage:** the flag helper and the 503 dependency (`tests/test_feature_flags.py`), startup loading and text building, behaviour when the API is down, keyword weighting, and `/search` ranking, normalization, location matching, stop words, excluding saved items, and request validation. **Development (embedding) mode is not tested** (see D-SEARCH-001).
 
 ## Known issues
 
@@ -110,3 +120,20 @@ These were in place before 2026-10-22, and their rationale wasn't written down.
   - Forgetting `FRONTEND_URL` on the host makes the deployed UI's search fail with a CORS error in the browser console.
 - **SRS reference:** _TBD_
 
+### D-SEARCH-003: Feature flags copied from VolunteerAPI, with a 503 dependency
+
+- **Date:** 2026-11-16
+- **Status:** Accepted
+- **Context:** Features can be switched off in code across the app (KEY_DECISIONS.md, "Feature gates: code-level flags, one file per service"). This service deploys on its own and is Python, so it can't import VolunteerAPI's flags file.
+- **Options considered:**
+  1. *Its own `feature_flags.py` with the same names and values, kept in sync by a test.* Chosen.
+  2. *Only list the flags this service uses.* Rejected: "which flags belong here" becomes a judgement call, and the sync test would need an allow-list. A full copy is one simple rule.
+  3. *Ask VolunteerAPI for the flags at startup.* Rejected: the service only loads data at startup, so a flag change would need a restart anyway, and it would add another way for startup to fail.
+  4. *FastAPI's `HTTPException(503)`.* Rejected for the response: its body is `{ "detail": ... }`, and the UI should see the same body from both backends. A small `FeatureUnavailable` exception and one handler in `main.py` give `{ "error", "feature" }`.
+- **Decision:** `feature_flags.py` holds `FEATURE_FLAGS`, `is_enabled(name)` and `require_feature(name)` (a route dependency). `main.py` registers one exception handler that returns the 503. `VolunteerAPI/tests/featureFlagsSync.test.js` compares this file with the API's.
+- **Rationale:** Same shape as the API (one file, one helper, one shared 503), so there's one thing to learn.
+- **Consequences:**
+  - Switching a feature off means editing two files (three with the UI). The sync test runs in the `api` CI job, so a missed copy fails CI there, not in this service's job.
+  - The sync test reads this file with a regular expression, so each flag must stay on its own line as `"name": True,` or `"name": False,`.
+  - Tests run with `ENV=production`, where `is_enabled` tolerates unknown names. So `require_feature` rejects an unknown name in **every** environment: a typo on a route fails the tests and stops a deploy at startup (Render keeps the previous version running).
+- **SRS reference:** _TBD_ (availability / maintainability)
