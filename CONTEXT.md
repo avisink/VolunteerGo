@@ -89,6 +89,7 @@ The map page is a stretch feature: its code is kept, but its Google keys are rem
 
 ## Known quirks
 
+- **Don't rename CI jobs.** The repo's branch rules require status checks by job name (`VolunteerAPI tests`, `VolunteerUI lint + build`, `VolunteerSearch tests`). Renaming one (as PR #10 first did, to `VolunteerUI lint + test + build`) leaves the required check "Expected — waiting for status" forever and blocks the merge, even though the run passed. To rename, update the required checks in the repo settings in the same change.
 - **`VolunteerUI` lint has 7 known warnings** (`react-hooks/exhaustive-deps`) and 0 errors since D-UI-002. Errors fail CI. Don't "fix" a warning by adding a dependency without checking for refetch loops in the browser.
 - **`VITE_CLERK_PUBLISHABLE_KEY` is required even though Clerk is unused**: `VolunteerUI/src/main.jsx` throws `Missing Publishable Key` at startup without it, so the UI won't render. Set any placeholder value locally. Removing the check counts as touching Clerk/auth wiring, so ask first (KEY_DECISIONS.md).
 - **`Chat` field naming mismatch**: `VolunteerAPI/chatModel/chatModel.js` reads/writes `conversationID` in its Prisma calls, but the `Chat` model in `prisma/schema.prisma` defines the field as `conversationId`. Verify which is actually correct (or whether this is silently broken) before touching chat persistence.

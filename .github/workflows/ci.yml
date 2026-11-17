@@ -36,7 +36,8 @@ jobs:
       - run: npm test
 
   ui:
-    name: VolunteerUI lint + test + build
+    # Name kept as-is: branch rules require a check called "VolunteerUI lint + build".
+    name: VolunteerUI lint + build
     runs-on: ubuntu-latest
     defaults:
       run:
