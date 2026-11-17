@@ -51,6 +51,8 @@ Loaded from `VolunteerUI/.env`. Vite only exposes variables that start with `VIT
 | `npm run build` | Production build into `dist/` |
 | `npm run preview` | Serve the production build locally |
 | `npm run lint` | ESLint (`eslint.config.js`) |
+| `npm test` | Run the Vitest test suite once |
+| `npm run test:watch` | Vitest in watch mode, re-running tests as files change |
 
 ## Project structure
 
@@ -66,6 +68,8 @@ VolunteerUI/src/
 ├── utils/              # getImage (Pexels), loadGoogleMaps
 └── data/opportunities.js   # static sample data, not imported anywhere
 ```
+
+Tests live outside `src/`, in `VolunteerUI/tests/` (`setup.js`, `helpers.jsx`, `*.test.jsx`).
 
 ## Pages and routes
 
@@ -105,7 +109,26 @@ Firebase Authentication (`firebase/auth`), **email/password sign-in only**, is t
 
 ## Testing
 
-There are no automated tests yet. The `ui` job in `.github/workflows/ci.yml` runs on every PR, and both `npm run lint` and `npm run build` must pass. Lint errors fail CI; warnings don't (see [D-UI-002](#d-ui-002-clean-up-lint-and-make-it-blocking-in-ci)). Adding component tests is a future decision for this log.
+Tests use **Vitest** and **React Testing Library** in a simulated browser (jsdom), and live in `tests/` ([D-UI-003](#d-ui-003-vitest--react-testing-library-for-ui-tests)). They need no `.env`, no Firebase project and no running API.
+
+```bash
+npm test                              # all tests, once
+npm run test:watch                    # re-run on change
+npx vitest run tests/smoke.test.jsx   # one file
+npx vitest run -t "signed in"         # tests whose name matches
+```
+
+How they work:
+- `tests/setup.js` runs before every test file. It mocks `src/firebase.js` and `firebase/auth` (so Firebase is never contacted), replaces `fetch` with a stub that answers `200 []`, clears `localStorage`, and resets the URL to `/`.
+- `tests/helpers.jsx` has `renderApp(path)`, which renders the whole app the way `main.jsx` does at a given URL, and `signInAs(user)`, which makes the mocked Firebase report a signed-in user. Call `signInAs` **before** `renderApp`. The default is signed out.
+- A test that needs specific API data replaces the stub: `fetch.mockImplementation(async (url) => ...)`. Components that use `axios` need `vi.mock('axios')` in that test file.
+- Tests import `describe`, `test`, `expect` and `vi` from `vitest` (no globals), so ESLint needs no extra configuration.
+
+**Current coverage (2 tests):** `tests/smoke.test.jsx`: the app renders its navbar and home page signed out, and shows the signed-in links and Logout when signed in.
+
+What they can't catch: anything about the real backend, real Firebase, CSS/layout (CSS isn't loaded), or third-party widgets. Nothing runs in a real browser.
+
+**CI:** the `ui` job in `.github/workflows/ci.yml` runs `npm run lint`, `npm test`, then `npm run build` on every PR. Lint errors fail CI; warnings don't (see [D-UI-002](#d-ui-002-clean-up-lint-and-make-it-blocking-in-ci)).
 
 ## Known issues
 
@@ -172,3 +195,27 @@ These were in place before 2026-10-22, and their rationale wasn't written down. 
 - **SRS reference:** _TBD_
 
 _The next UI decision gets ID `D-UI-003`._
+
+### D-UI-003: Vitest + React Testing Library for UI tests
+
+- **Date:** 2026-11-17
+- **Status:** Accepted
+- **Context:** The UI had no automated tests; CI only ran lint and build. The feature-gate work (KEY_DECISIONS.md, "Feature gates") needs to prove, per flag, that a switched-off feature's links disappear and its route shows an "unavailable" page. Lint and build can't show that.
+- **Options considered:**
+  1. *Vitest + React Testing Library + jsdom.* Chosen.
+  2. *Jest + React Testing Library* (what VolunteerAPI uses for its tests). Rejected: the UI is ESM with Vite-specific `import.meta.env`, so Jest would need Babel and a second build configuration. Vitest reuses `vite.config.js` and has the same `describe`/`test`/`expect` API.
+  3. *Playwright end-to-end tests in a real browser.* Deferred: they need all three services, a database and a Firebase project running in CI. Worth adding later for a few critical flows, not as the first layer.
+  4. *Tests next to each component* (`components/NavBar/NavBar.test.jsx`). Rejected for now: `tests/` mirrors VolunteerAPI and VolunteerSearch, and most early tests render the whole app rather than one component.
+  5. *Vitest globals* (`describe`/`expect` without imports). Rejected: explicit imports need no ESLint globals configuration.
+- **Decision:**
+  - Dev dependencies: `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`. Configuration is the `test` block in `vite.config.js`.
+  - Tests live in `VolunteerUI/tests/`. `setup.js` mocks Firebase and stubs `fetch` for every test; `helpers.jsx` provides `renderApp` and `signInAs`.
+  - Scripts `npm test` (`vitest run`) and `npm run test:watch`. The CI `ui` job runs `npm test` between lint and build.
+- **Rationale:** One toolchain (Vite) for build and tests, the same test vocabulary as the API's Jest tests, and whole-app rendering exercises routing, the navbar and the context providers together, which is where feature gates act.
+- **Consequences:**
+  - Firebase and the network are mocked, so these tests can't catch a backend, Firebase or deployment problem. jsdom isn't a real browser: no layout, and CSS is skipped (`css: false`).
+  - The default `fetch` stub answers `200 []` to everything. A component that expects an object may log an error in a test until that test supplies real-looking data.
+  - The mocked `firebase/auth` only exports what the app uses today (`onAuthStateChanged`, `signOut`, `signInWithEmailAndPassword`, `createUserWithEmailAndPassword`). A new Firebase import needs adding to `tests/setup.js`.
+  - CI's `ui` job takes a few seconds longer and now fails on a failing test.
+  - No coverage threshold is set. Coverage starts very low (a smoke test); route and feature-gate tests follow in their own PRs.
+- **SRS reference:** _TBD_ (verification / maintainability)
