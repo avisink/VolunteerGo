@@ -72,7 +72,9 @@ VolunteerAPI/
 ├── server.js           # entry point: imports app.js and calls app.listen(PORT)
 ├── routes/             # one router per resource, mounted in app.js
 ├── controllers/        # request handlers; talk to the database via db/db.js
+├── config/featureFlags.js   # feature flags and isEnabled(); the one place a feature is switched off
 ├── middleware/auth.js  # verifyFirebaseToken (Firebase) and optionalAuthenticateToken (JWT)
+├── middleware/featureGate.js # requireFeature(flag): 503 while that flag is off
 ├── lib/gamification.js # points-per-application and the level curve (the only place they're computed)
 ├── lib/badges.js       # badge rules and awardBadges (the only place badges are given)
 ├── db/db.js            # the single shared PrismaClient
@@ -135,6 +137,17 @@ Request flow: `server.js` → `app.js` (CORS, logging, JSON parsing) → `routes
 
 Firebase Authentication is the only auth system in use (see [KEY_DECISIONS.md](../KEY_DECISIONS.md#auth-firebase-is-canonical-not-clerk)). The client signs in with Firebase, gets an ID token, and sends it as a bearer token. `verifyFirebaseToken` checks the token with `firebase-admin` and attaches the decoded token to `req.user`. The `@clerk/*` dependencies are unused leftovers.
 
+## Feature flags
+
+Any gateable feature can be switched off in code if it has a bug, while the rest of the API keeps running ([D-API-009](#d-api-009-feature-flags-in-code-with-one-shared-503-middleware)).
+
+- `config/featureFlags.js` holds one boolean per feature. Set it to `false` and redeploy to switch the feature off.
+- `isEnabled("flagName")` is the only way code asks about a flag. An unknown name throws outside production; in production it logs an error and counts as on.
+- `requireFeature("flagName")` (`middleware/featureGate.js`) goes on a feature's routes, **before** the auth middleware. While the flag is off the route answers `503 { "error": "Feature temporarily unavailable", "feature": "<flagName>" }`.
+- Code that only *uses* another feature (for example, apply awarding badges) checks `isEnabled` and skips that step instead of failing.
+
+No flags are defined yet; each feature's gate adds its own.
+
 ## Testing
 
 Tests use **Jest** and **Supertest** and live in `tests/`. They need no database, no Firebase key, and no `.env`.
@@ -152,12 +165,14 @@ How they work:
 
 - To test a 🔒 route, mock `firebaseAdmin.js` as `{ auth: () => ({ verifyIdToken: mockVerifyIdToken }) }`. Then make `mockVerifyIdToken` resolve to a fake decoded token (`{ uid: "..." }`) or reject. See `tests/auth.test.js`. The mock function's name must start with `mock` so Jest allows it inside `jest.mock()`.
 
-**Current coverage (44 tests):**
+**Current coverage (52 tests):**
 - `tests/opportunities.test.js`: `GET /opportunities` (list, keyword/city filters, 500 on DB error) and `GET /opportunities/:id` (found, 404).
 - `tests/auth.test.js`: `verifyFirebaseToken` via `PUT /users/:id/opportunities/add` (no header, non-Bearer header, unverifiable token → 401; a verified uid reaches the controller).
 - `tests/gamification.test.js`: the level curve, points per opportunity, and the apply endpoint (awards server-side points, ignores client-sent points/level, no double award, 403 for another user, 404 unknown opportunity, 400 missing id), plus `PUT /users/points` being gone and `POST /users/onboarding` ignoring client points/level.
 
 - `tests/access.test.js`: badge rules, badges awarded by apply/onboarding/friend-accept, `POST /badges/give` gone, admin-only catalog writes (401/403/allowed with `ADMIN_UIDS`), public reads, self-only saved/delete routes, `POST /users` taking the UID from the token, and confirmation email going only to the caller.
+
+- `tests/featureFlags.test.js`: `isEnabled` (on, off, unknown name throws outside production and logs in production) and `requireFeature` (passes while on, 503 body while off, other routes untouched, typo fails at route definition). Tests switch a flag by setting it on the exported `featureFlags` object and restoring it afterwards.
 
 To mock `prisma.$transaction`, make it call its callback with the mock client (see the top of `tests/gamification.test.js`). Tests that need an admin set `process.env.ADMIN_UIDS` and delete it in `beforeEach`.
 
@@ -336,3 +351,25 @@ These were in place before 2026-10-22, and their rationale wasn't written down. 
   - Tests are unaffected (they mock Prisma).
 - **SRS reference:** _TBD_
 
+### D-API-009: Feature flags in code, with one shared 503 middleware
+
+- **Date:** 2026-11-16
+- **Status:** Accepted
+- **Context:** A bug in one feature (friends, badges, the confirmation email) currently means either living with it or taking the whole API down until a fix ships. We want to switch off a single feature and keep everything else running. The project owner ruled out an admin UI, a database table and third-party flag services: flags are changed by editing code and redeploying. The cross-service side of this is in [KEY_DECISIONS.md](../KEY_DECISIONS.md#feature-gates-code-level-flags-one-file-per-service).
+- **Options considered:**
+  1. *A plain object of booleans in `config/featureFlags.js`, read through `isEnabled()`, and a `requireFeature()` middleware.* Chosen.
+  2. *Environment variables per feature* (`FEATURE_FRIENDS=false`). Rejected: the state would live in the Render dashboard instead of in reviewed, versioned code, and it's a second place to look.
+  3. *A check at the top of each controller.* Rejected: copies the 503 into every handler and is easy to forget on a new route.
+  4. *A library* (`unleash`, `flagsmith`, ...). Rejected: ruled out, and far more than a dozen booleans need.
+- **Decision:**
+  - `config/featureFlags.js` exports `featureFlags` (one boolean per feature, each with a one-line comment) and `isEnabled(flagName)`.
+  - `middleware/featureGate.js` exports `requireFeature(flagName)`, which answers `503 { error: "Feature temporarily unavailable", feature }` while the flag is off. It goes before the auth middleware.
+  - An unknown flag name throws when `NODE_ENV` isn't `production`. `requireFeature` checks the name when the route is defined, so a typo stops the app (and every test that loads `app.js`) from starting. In production an unknown name logs an error and counts as **on**.
+- **Rationale:** One file to edit, one helper to search for, one middleware that owns the 503. Failing at startup catches typos before they ship. Failing open in production means a typo can't silently switch a feature off or crash a live request.
+- **Consequences:**
+  - Toggling needs a commit and a redeploy (a few minutes on Render). There's no instant kill switch.
+  - Flags are read on every request, so tests can flip one by setting it on the exported object. Tests must restore it.
+  - Gate before auth: a switched-off feature answers 503 even to callers who aren't signed in, rather than 401.
+  - Every new feature route needs `requireFeature`; nothing enforces that automatically yet.
+  - 503 is used rather than 404 so clients and logs can tell "switched off on purpose" from "doesn't exist".
+- **SRS reference:** _TBD_ (availability / maintainability)
