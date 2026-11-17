@@ -30,6 +30,10 @@ Every decision made while working in this repo must be documented in detail **in
 
 **Keeping the READMEs current:** when a change affects what a README describes (setup, env vars, endpoints, routes, scripts, tests, architecture), update that README in the same change. The service READMEs are the living, human-facing docs; CLAUDE.md stays a short map for Claude.
 
+## Pull request size rule (mandatory)
+
+Keep pull requests bite-sized so they're easy to review. One PR does one thing: one feature gate, one bug fix, one refactor, one doc change. If a task has several parts, open several PRs, each on its own branch, rather than one large one. When a later part builds on an earlier one, stack the branches (base the PR on the earlier branch) so each diff shows only its own change. Each PR still carries its own tests and documentation (see the rule above). Rationale: KEY_DECISIONS.md ("Pull requests: small, one change each").
+
 ## Commands
 
 ### VolunteerUI (frontend)
