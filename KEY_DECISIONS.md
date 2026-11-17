@@ -26,7 +26,7 @@ Add new entries above the template at the bottom, using the same format.
   4. *Separate workflow files per service with path filters* (only run a service's job when its folder changes). Deferred: faster, but path-filtered required checks are awkward to configure, and the suite is fast enough to run in full.
 - **Decision:** One workflow, `.github/workflows/ci.yml`, triggered on every pull request and on pushes to `main`, with three parallel jobs:
   - **`api`** (Node 24): `npm ci --ignore-scripts`, then `npm test`.
-  - **`ui`** (Node 24): `npm ci --ignore-scripts`, then `npm run lint` (blocking since 2026-10-22, D-UI-002; it was non-blocking at first), then `npm run build`.
+  - **`ui`** (Node 24): `npm ci --ignore-scripts`, then `npm run lint` (blocking since 2026-10-22, D-UI-002; it was non-blocking at first), then `npm test` (added 2026-11-17 with the UI test suite, D-UI-003), then `npm run build`.
   - **`search`** (Python 3.13): `pip install -r requirements-test.txt`, then `pytest`.
   - Read-only token permissions, npm/pip caching, and superseded runs on the same branch are cancelled.
 - **Why:**

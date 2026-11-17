@@ -36,7 +36,7 @@ jobs:
       - run: npm test
 
   ui:
-    name: VolunteerUI lint + build
+    name: VolunteerUI lint + test + build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -52,6 +52,8 @@ jobs:
       # Blocking since lint was cleaned up (VolunteerUI D-UI-002). Warnings
       # (react-hooks/exhaustive-deps) don't fail the job; errors do.
       - run: npm run lint
+      # Vitest in jsdom; Firebase and fetch are mocked, so no secrets (D-UI-003).
+      - run: npm test
       - run: npm run build
 
   search:

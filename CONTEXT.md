@@ -9,7 +9,7 @@ _Last updated 2026-10-23. Start here in a new session; overwrite this section as
 **Where things stand**
 - Working branch: `context-setting` (the user prefers committing here and opening PRs from it). PRs go to the **fork's** `main`: `gh pr create -R avisink/VolunteerGo --base main`. Never target `ftl-pod/VolunteerGo`.
 - PRs #1–#4 are merged (#4: server points/badges/auth, lint, Copilot review, Render config).
-- Tests: VolunteerAPI has **44** Jest tests (`opportunities`, `auth`, `gamification`, `access`); VolunteerSearch has 12 pytest tests; VolunteerUI has none (lint must be error-free, then build).
+- Tests: VolunteerAPI has **44** Jest tests (`opportunities`, `auth`, `gamification`, `access`); VolunteerSearch has 12 pytest tests; VolunteerUI has 2 Vitest tests (a smoke test, D-UI-003; lint must be error-free, then tests, then build).
 - Latest decision IDs: **D-API-008, D-UI-002, D-SEARCH-002**. KEY_DECISIONS.md has entries for auth, CI, PR review (Claude superseded → Copilot) and hosting.
 
 **Decisions made 2026-10-23**
