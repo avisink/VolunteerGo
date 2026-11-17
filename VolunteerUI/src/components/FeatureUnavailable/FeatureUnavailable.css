@@ -1,0 +1,25 @@
+.feature-unavailable {
+  max-width: 480px;
+  margin: 120px auto;
+  padding: 0 16px;
+  text-align: center;
+  color: var(--text-color);
+}
+
+.feature-unavailable h1 {
+  color: var(--header-color);
+}
+
+.feature-unavailable-home {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  background-color: var(--primary-color);
+  color: white;
+  text-decoration: none;
+}
+
+.feature-unavailable-home:hover {
+  background-color: var(--primary-hover);
+}

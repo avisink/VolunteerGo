@@ -19,7 +19,7 @@ describe("feature flag copies match VolunteerAPI/config/featureFlags.js", () => 
         expect(readFlags("VolunteerAPI/config/featureFlags.js")).toEqual(featureFlags);
     });
 
-    test.each(["VolunteerSearch/feature_flags.py"])("%s", (copy) => {
+    test.each(["VolunteerSearch/feature_flags.py", "VolunteerUI/src/config/featureFlags.js"])("%s", (copy) => {
         expect(readFlags(copy)).toEqual(featureFlags);
     });
 });
