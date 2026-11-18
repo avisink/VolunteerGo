@@ -66,6 +66,7 @@ VolunteerUI/src/
 ├── contexts/           # OpportunityContext, ProfileContext, LeaderboardContext
 ├── hooks/useAuth.jsx   # AuthProvider / useAuth
 ├── utils/              # getImage (Pexels), loadGoogleMaps
+├── config/featureFlags.js  # feature flags and isEnabled(); a copy of VolunteerAPI's list
 └── data/opportunities.js   # static sample data, not imported anywhere
 ```
 
@@ -87,6 +88,18 @@ All routes are defined in one flat list in `components/App/App.jsx`. Each one po
 | `/saved` | `SavedPage` | Saved opportunities |
 | `/opportunity/:id` | `OpportunityPage` | Opportunity detail and apply |
 | `/map` | `LocationPage` | Map view. Stretch feature, not linked in the nav, no API keys (D-UI-001) |
+
+## Feature flags
+
+Any gateable feature can be switched off in code while the rest of the app keeps working ([D-UI-004](#d-ui-004-feature-flags-with-a-featuregate-component); cross-service rules in [KEY_DECISIONS.md](../KEY_DECISIONS.md#feature-gates-code-level-flags-one-file-per-service)).
+
+- `src/config/featureFlags.js` is a copy of `VolunteerAPI/config/featureFlags.js` (the source of truth), with the same names and values. A VolunteerAPI test fails if they differ, so change a flag in every copy. `VITE_` values aren't used: flags live in code.
+- `isEnabled("flagName")` is the only way code asks about a flag. An unknown name throws in development and tests; in a production build it logs an error and counts as on.
+- `<FeatureGate flag="flagName" page>` wraps a route's element: while the flag is off, visiting the route shows `FeatureUnavailable` ("Temporarily unavailable", with a link home) instead of the page.
+- `<FeatureGate flag="flagName">` wraps a nav link, button, tab or other entry point: while the flag is off it renders nothing, or its `fallback` prop.
+- Code that only *uses* another feature checks `isEnabled` and skips that piece, and should treat a `503` from the API or search service the same way.
+
+No flags are defined yet; each feature's gate adds its own.
 
 ## State and data flow
 
@@ -124,7 +137,9 @@ How they work:
 - A test that needs specific API data replaces the stub: `fetch.mockImplementation(async (url) => ...)`. Components that use `axios` need `vi.mock('axios')` in that test file.
 - Tests import `describe`, `test`, `expect` and `vi` from `vitest` (no globals), so ESLint needs no extra configuration.
 
-**Current coverage (2 tests):** `tests/smoke.test.jsx`: the app renders its navbar and home page signed out, and shows the signed-in links and Logout when signed in.
+**Current coverage (9 tests):**
+- `tests/smoke.test.jsx`: the app renders its navbar and home page signed out, and shows the signed-in links and Logout when signed in.
+- `tests/featureFlags.test.jsx`: `isEnabled` (on, off, unknown name throws in development and logs in a production build) and `FeatureGate` (children while on; the unavailable page with a link home for a page, nothing or the fallback otherwise, while off). Tests switch a flag by setting it on the exported `featureFlags` object and restoring it afterwards.
 
 What they can't catch: anything about the real backend, real Firebase, CSS/layout (CSS isn't loaded), or third-party widgets. Nothing runs in a real browser.
 
@@ -219,3 +234,23 @@ _The next UI decision gets ID `D-UI-003`._
   - CI's `ui` job takes a few seconds longer and now fails on a failing test.
   - No coverage threshold is set. Coverage starts very low (a smoke test); route and feature-gate tests follow in their own PRs.
 - **SRS reference:** _TBD_ (verification / maintainability)
+
+### D-UI-004: Feature flags with a FeatureGate component
+
+- **Date:** 2026-11-17
+- **Status:** Accepted
+- **Context:** Features can be switched off in code across the app (KEY_DECISIONS.md, "Feature gates: code-level flags, one file per service"). In the UI a switched-off feature must hide its links and entry points, and visiting its route directly must show a friendly page, not a crash or a blank screen.
+- **Options considered:**
+  1. *A `FeatureGate` component used both around route elements (`page`) and around links and buttons.* Chosen.
+  2. *Leave gated routes out of the `<Routes>` list.* Rejected: visiting the URL would match nothing and render a blank page under the navbar, which is what we're trying to avoid.
+  3. *A redirect to `/` while off.* Rejected: the user can't tell whether the link was wrong or the feature is down.
+  4. *`isEnabled` checks written inline at every call site* (`{isEnabled('x') && <NavLink .../>}`). Allowed where a component needs the boolean itself, but for routes and simple entry points the component keeps the call sites short and the "what's shown while off" rule in one place.
+  5. *Flags from `VITE_` environment variables.* Rejected for the same reason as on the API (D-API-009): flags belong in reviewed code, not the Render dashboard. They would also be baked in at build time anyway.
+- **Decision:** `src/config/featureFlags.js` (copy of the API's list) exports `featureFlags` and `isEnabled`. `components/FeatureGate` renders its children while on; while off it renders `components/FeatureUnavailable` when `page` is set, otherwise `fallback` (default nothing). An unknown flag throws when `import.meta.env.DEV` is true (dev server and Vitest), and logs and counts as on in a production build. `VolunteerAPI/tests/featureFlagsSync.test.js` now also checks this copy.
+- **Rationale:** One component owns what users see while a feature is off. Failing loudly in development catches typos; failing open in production means a typo can't hide a feature from real users.
+- **Consequences:**
+  - Flags are compiled into the bundle. Toggling one needs a UI redeploy (Render rebuilds the static site); users with the old page open keep the old flags until they reload.
+  - The UI can disagree with the API for a few minutes during deploys, so UI code must already handle a `503` from a backend without crashing.
+  - A gated feature's code is still in the bundle; it just isn't rendered.
+  - `FeatureUnavailable` uses the shared CSS variables from `index.css`. CSS isn't loaded in tests (D-UI-003), so its look is checked by hand, not by tests.
+- **SRS reference:** _TBD_ (availability / maintainability)
