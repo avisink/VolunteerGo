@@ -7,6 +7,7 @@ import { useLeaderboard } from "../../contexts/LeaderboardContext";
 import BadgeModal from "../BadgeModal/BadgeModal";
 import './ApplyModal.css';
 import PopupPill from '../PopupPill/PopupPill';
+import { isEnabled } from '../../config/featureFlags';
 
 function ApplyModal({ isOpen, onClose, opportunity, setShowApplied, setShowAnimation }) {
   const [message, setMessage] = useState('');
@@ -95,8 +96,8 @@ function ApplyModal({ isOpen, onClose, opportunity, setShowApplied, setShowAnima
       if (result.leveledUp) {
         setShouldLevelUp(true);
       }
-      // Confirmation email
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/send-confirmation-email`, {
+      // Confirmation email, skipped while its flag is off (FEATURE_FLAGS.md)
+      if (isEnabled('confirmationEmail')) await fetch(`${import.meta.env.VITE_API_BASE_URL}/users/send-confirmation-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
