@@ -315,6 +315,7 @@ useEffect(() => {
                     ) ? (
                       <button className="btn-primary"> Applied </button>
                     ) : (
+                      <FeatureGate flag="applications">
                       <button
                         className="btn-primary"
                         onClick={() => {
@@ -323,6 +324,7 @@ useEffect(() => {
                       >
                         I Want to Help{" "}
                       </button>
+                      </FeatureGate>
                     )}
                     <FeatureGate flag="savedOpportunities">
                     <button

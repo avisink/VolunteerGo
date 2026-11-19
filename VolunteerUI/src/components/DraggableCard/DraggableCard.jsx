@@ -291,10 +291,12 @@ const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) =
                   <button className="back-button" onClick={() => window.history.back()}>
             <ArrowLeft size={16} />  Back
         </button>
+            <FeatureGate flag="applications">
             <button className="btn-primary" onClick={() => 
               { isSignedIn?  handleApplyClick(opportunity) : setShowLogin(true)
               }}
               >I Want to Help</button>
+            </FeatureGate>
             <FeatureGate flag="savedOpportunities">
             <button
               className="save-btn"

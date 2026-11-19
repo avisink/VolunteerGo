@@ -122,8 +122,8 @@ Request flow: `server.js` → `app.js` (CORS, logging, JSON parsing) → `routes
 | GET | `/:id` | By database ID |
 | GET | `/by-uid/:uid` | By Firebase UID |
 | POST | `/` 🔒 | Create the caller's user row. The Firebase UID comes from the token; the body only gives `username` and optional `name` |
-| GET | `/:id/opportunities` | Applied/joined opportunities |
-| PUT | `/:id/opportunities/add` 🔒 | Apply to an opportunity. While the `gamification` flag is off it awards 0 points; while `badges` is off it awards no badges. `:id` must be the caller (403 otherwise). Awards the opportunity's `points` (10 if it has none), recomputes the level, awards badges, and returns `{ opportunities, points, level, pointsAwarded, leveledUp, badgesEarned }`. Applying again awards nothing. See [D-API-005](#d-api-005-compute-points-and-levels-on-the-server) |
+| GET | `/:id/opportunities` | Applied/joined opportunities. Flag `applications` (503 while off) |
+| PUT | `/:id/opportunities/add` 🔒 | Apply to an opportunity. Flag `applications` (503 while off). While the `gamification` flag is off it awards 0 points; while `badges` is off it awards no badges. `:id` must be the caller (403 otherwise). Awards the opportunity's `points` (10 if it has none), recomputes the level, awards badges, and returns `{ opportunities, points, level, pointsAwarded, leveledUp, badgesEarned }`. Applying again awards nothing. See [D-API-005](#d-api-005-compute-points-and-levels-on-the-server) |
 | GET | `/:id/saved-opportunities` | Saved opportunities. This and the two saved routes below have flag `savedOpportunities` (503 while off) |
 | POST | `/:id/saved-opportunities/add` 🔒👤 | Save |
 | POST | `/:id/saved-opportunities/remove` 🔒👤 | Unsave |
@@ -146,7 +146,7 @@ Any gateable feature can be switched off in code if it has a bug, while the rest
 - `requireFeature("flagName")` (`middleware/featureGate.js`) goes on a feature's routes, **before** the auth middleware. While the flag is off the route answers `503 { "error": "Feature temporarily unavailable", "feature": "<flagName>" }`.
 - Code that only *uses* another feature (for example, apply awarding badges) checks `isEnabled` and skips that step instead of failing.
 
-Flags so far: `map` (off; UI-only), `confirmationEmail`, `friends`, `badges`, `gamification`, `savedOpportunities`. Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
+Flags so far: `map` (off; UI-only), `confirmationEmail`, `friends`, `badges`, `gamification`, `savedOpportunities`, `applications`. Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
 
 ## Testing
 
@@ -165,7 +165,7 @@ How they work:
 
 - To test a 🔒 route, mock `firebaseAdmin.js` as `{ auth: () => ({ verifyIdToken: mockVerifyIdToken }) }`. Then make `mockVerifyIdToken` resolve to a fake decoded token (`{ uid: "..." }`) or reject. See `tests/auth.test.js`. The mock function's name must start with `mock` so Jest allows it inside `jest.mock()`.
 
-**Current coverage (87 tests):**
+**Current coverage (92 tests):**
 - `tests/opportunities.test.js`: `GET /opportunities` (list, keyword/city filters, 500 on DB error) and `GET /opportunities/:id` (found, 404).
 - `tests/auth.test.js`: `verifyFirebaseToken` via `PUT /users/:id/opportunities/add` (no header, non-Bearer header, unverifiable token → 401; a verified uid reaches the controller).
 - `tests/gamification.test.js`: the level curve, points per opportunity, and the apply endpoint (awards server-side points, ignores client-sent points/level, no double award, 403 for another user, 404 unknown opportunity, 400 missing id), plus `PUT /users/points` being gone and `POST /users/onboarding` ignoring client points/level.
@@ -173,6 +173,7 @@ How they work:
 - `tests/access.test.js`: badge rules, badges awarded by apply/onboarding/friend-accept, `POST /badges/give` gone, admin-only catalog writes (401/403/allowed with `ADMIN_UIDS`), public reads, self-only saved/delete routes, `POST /users` taking the UID from the token, and confirmation email going only to the caller.
 
 - `tests/featureFlags.test.js`: `isEnabled` (on, off, unknown name throws outside production and logs in production) and `requireFeature` (passes while on, 503 body while off, other routes untouched, typo fails at route definition). Tests switch a flag by setting it on the exported `featureFlags` object and restoring it afterwards.
+- `tests/flag-applications.test.js`: with the flag off apply and the applied list answer 503 before auth or the database (no points written), and profile and opportunity routes still answer; with it on the applied list answers.
 - `tests/flag-savedOpportunities.test.js`: with the flag off the three saved-opportunity routes answer 503 before auth or the database, and other `/users` routes still answer; with it on saving works.
 - `tests/flag-gamification.test.js`: with the flag off applying succeeds with `pointsAwarded: 0`, unchanged points and level and no level-up; with it on the same apply awards 10 points and levels up.
 - `tests/flag-badges.test.js`: with the flag off `/badges` reads and writes answer 503, and onboarding and applying still succeed (points still awarded) with `badgesEarned: []` and no badge lookups; with it on onboarding awards the Newcomer badge.

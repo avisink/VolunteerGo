@@ -14,6 +14,8 @@ const featureFlags = {
   gamification: true,
   // Saved opportunities: bookmarking and the /saved page. Off: save buttons and the Saved link are hidden.
   savedOpportunities: true,
+  // Applications: applying to opportunities ("I Want to Help"). Off: apply buttons are hidden and apply answers 503.
+  applications: true,
 };
 
 // Always ask through this helper. An unknown name is a typo: it throws outside

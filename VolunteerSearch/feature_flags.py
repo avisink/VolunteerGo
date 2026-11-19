@@ -19,6 +19,8 @@ FEATURE_FLAGS = {
     "gamification": True,
     # Saved opportunities: bookmarking and the /saved page. Off: save buttons and the Saved link are hidden.
     "savedOpportunities": True,
+    # Applications: applying to opportunities ("I Want to Help"). Off: apply buttons are hidden and apply answers 503.
+    "applications": True,
 }
 
 

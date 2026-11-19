@@ -99,7 +99,7 @@ Any gateable feature can be switched off in code while the rest of the app keeps
 - `<FeatureGate flag="flagName">` wraps a nav link, button, tab or other entry point: while the flag is off it renders nothing, or its `fallback` prop.
 - Code that only *uses* another feature checks `isEnabled` and skips that piece, and should treat a `503` from the API or search service the same way.
 
-Flags so far: `map` (off; UI-only), `confirmationEmail`, `friends`, `badges`, `gamification`, `savedOpportunities`. Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
+Flags so far: `map` (off; UI-only), `confirmationEmail`, `friends`, `badges`, `gamification`, `savedOpportunities`, `applications`. Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
 
 ## State and data flow
 
@@ -137,8 +137,9 @@ How they work:
 - A test that needs specific API data replaces the stub: `fetch.mockImplementation(async (url) => ...)`. Components that use `axios` need `vi.mock('axios')` in that test file.
 - Tests import `describe`, `test`, `expect` and `vi` from `vitest` (no globals), so ESLint needs no extra configuration.
 
-**Current coverage (37 tests):**
+**Current coverage (42 tests):**
 - `tests/smoke.test.jsx`: the app renders its navbar and home page signed out, and shows the signed-in links and Logout when signed in.
+- `tests/flag-applications.test.jsx`: on and off, "I Want to Help" on `/search` and `/opportunity/:id`, with both pages still rendering.
 - `tests/flag-savedOpportunities.test.jsx`: on and off, for `/search` (bookmark buttons, Saved nav link, opportunities still listed) and `/saved` (page vs unavailable page). Seeds the `opportunities` `localStorage` cache that `OpportunityContext` reads.
 - `tests/flag-gamification.test.jsx`: on and off, for the navbar and `/profile` (points and progress bars) and `/public-profile/:userId` (points and level).
 - `tests/flag-badges.test.jsx`: on and off, for `/profile` (Badges tab, `/badges` request) and `/public-profile/:userId` (badges section).
