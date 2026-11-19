@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { isEnabled } from "../config/featureFlags";
 
 const LeaderboardContext = createContext();
 
@@ -7,6 +8,11 @@ export function LeaderboardProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const fetchLeaderboard = async () => {
+    // Nothing shows the ranking while the leaderboard flag is off, so don't fetch it (FEATURE_FLAGS.md).
+    if (!isEnabled("leaderboard")) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/users`);

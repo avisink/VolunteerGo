@@ -47,7 +47,7 @@ Data is only refreshed on **restart**. New opportunities in the API don't show u
 - A gated route declares `dependencies=[Depends(require_feature("flagName"))]`. While the flag is off it answers `503 { "error": "Feature temporarily unavailable", "feature": "<flagName>" }`.
 - A flag name that isn't in the list stops the service from starting (`require_feature`), or raises outside production (`is_enabled`). In production `is_enabled` logs it and counts it as on.
 
-Flags so far: `map` (off; UI-only), `confirmationEmail`, `friends`, `badges`, `gamification`, `savedOpportunities`, `applications`. Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
+Flags so far: `map` (off; UI-only), `confirmationEmail`, `friends`, `badges`, `gamification`, `savedOpportunities`, `applications`, `leaderboard` (UI-only). Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
 
 ## Testing
 

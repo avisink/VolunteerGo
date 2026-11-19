@@ -21,6 +21,8 @@ FEATURE_FLAGS = {
     "savedOpportunities": True,
     # Applications: applying to opportunities ("I Want to Help"). Off: apply buttons are hidden and apply answers 503.
     "applications": True,
+    # Leaderboard page and profile rank (UI-only: GET /users is shared, so it isn't gated). Off: hidden.
+    "leaderboard": True,
 }
 
 

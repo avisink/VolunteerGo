@@ -16,6 +16,8 @@ const featureFlags = {
   savedOpportunities: true,
   // Applications: applying to opportunities ("I Want to Help"). Off: apply buttons are hidden and apply answers 503.
   applications: true,
+  // Leaderboard page and profile rank (UI-only: GET /users is shared, so it isn't gated). Off: hidden.
+  leaderboard: true,
 };
 
 // Always ask through this helper. An unknown name is a typo: it throws outside

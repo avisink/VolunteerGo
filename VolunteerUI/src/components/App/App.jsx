@@ -35,7 +35,7 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/profile" element={<ProfilePage user={user}/>} />
-                <Route path="/leaderboard" element={<Leaderboard />} />
+                <Route path="/leaderboard" element={<FeatureGate flag="leaderboard" page><Leaderboard /></FeatureGate>} />
                 <Route path="/saved" element={<FeatureGate flag="savedOpportunities" page><SavedPage /></FeatureGate>} />
                 <Route path="/opportunity/:id" element={<OpportunityPage />} />
                 <Route path="/map" element={<FeatureGate flag="map" page><LocationPage/></FeatureGate>} />

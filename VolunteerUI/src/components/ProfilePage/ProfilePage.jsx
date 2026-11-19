@@ -138,6 +138,7 @@ function ProfilePage() {
       </div>
       
       <div className="section">
+        <FeatureGate flag="leaderboard">
         <div className="box">
           <div className="box-header">
             <FaFireFlameCurved className="icon" />
@@ -149,6 +150,7 @@ function ProfilePage() {
             </div>
           </div>
         </div>
+        </FeatureGate>
 
         <div className="box org-box">
           <div className="box-header">

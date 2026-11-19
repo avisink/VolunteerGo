@@ -142,7 +142,7 @@ function Navbar() {
             <FeatureGate flag="savedOpportunities"><NavLink to="/saved" className="nav-link">Saved</NavLink></FeatureGate>
           )}
           {isLoaded && isSignedIn && (
-            <NavLink to="/leaderboard" className="nav-link">Leaderboard</NavLink>
+            <FeatureGate flag="leaderboard"><NavLink to="/leaderboard" className="nav-link">Leaderboard</NavLink></FeatureGate>
           )}
           {/* <NavLink to="/map" className="nav-link">Map</NavLink> */}
         </div>
@@ -188,7 +188,7 @@ function Navbar() {
           <FeatureGate flag="savedOpportunities"><NavLink to="/saved" className="nav-link">Saved</NavLink></FeatureGate>
         )}
         {isLoaded && isSignedIn && (
-          <NavLink to="/leaderboard" className="nav-link">Leaderboard</NavLink>
+          <FeatureGate flag="leaderboard"><NavLink to="/leaderboard" className="nav-link">Leaderboard</NavLink></FeatureGate>
         )}
         {/* <NavLink to="/map" className="nav-link">Map</NavLink> */}
       </div>
