@@ -146,7 +146,7 @@ Any gateable feature can be switched off in code if it has a bug, while the rest
 - `requireFeature("flagName")` (`middleware/featureGate.js`) goes on a feature's routes, **before** the auth middleware. While the flag is off the route answers `503 { "error": "Feature temporarily unavailable", "feature": "<flagName>" }`.
 - Code that only *uses* another feature (for example, apply awarding badges) checks `isEnabled` and skips that step instead of failing.
 
-No flags are defined yet; each feature's gate adds its own.
+Flags so far: `map` (off; UI-only). Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
 
 ## Testing
 

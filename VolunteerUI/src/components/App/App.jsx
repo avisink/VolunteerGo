@@ -14,6 +14,7 @@ import SavedPage from '../SavedPage/SavedPage'
 import Onboarding from '../Onboarding/Onboarding'
 import PublicProfile from '../PublicProfile/PublicProfile'
 import { OpportunityProvider } from '../../contexts/OpportunityContext';
+import FeatureGate from '../FeatureGate/FeatureGate'
 
 import { useAuth } from "../../hooks/useAuth";
 import './App.css'
@@ -37,7 +38,7 @@ function App() {
                 <Route path="/leaderboard" element={<Leaderboard />} />
                 <Route path="/saved" element={<SavedPage />} />
                 <Route path="/opportunity/:id" element={<OpportunityPage />} />
-                <Route path="/map" element={<LocationPage/>} />
+                <Route path="/map" element={<FeatureGate flag="map" page><LocationPage/></FeatureGate>} />
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/public-profile/:userId" element={<PublicProfile />} />
               </Routes>

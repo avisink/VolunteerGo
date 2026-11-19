@@ -87,7 +87,7 @@ All routes are defined in one flat list in `components/App/App.jsx`. Each one po
 | `/leaderboard` | `Leaderboard` | Points ranking |
 | `/saved` | `SavedPage` | Saved opportunities |
 | `/opportunity/:id` | `OpportunityPage` | Opportunity detail and apply |
-| `/map` | `LocationPage` | Map view. Stretch feature, not linked in the nav, no API keys (D-UI-001) |
+| `/map` | `LocationPage` | Map view. Stretch feature, not linked in the nav, no API keys (D-UI-001). Behind the `map` flag, which ships **off**, so the route shows "Temporarily unavailable" |
 
 ## Feature flags
 
@@ -99,7 +99,7 @@ Any gateable feature can be switched off in code while the rest of the app keeps
 - `<FeatureGate flag="flagName">` wraps a nav link, button, tab or other entry point: while the flag is off it renders nothing, or its `fallback` prop.
 - Code that only *uses* another feature checks `isEnabled` and skips that piece, and should treat a `503` from the API or search service the same way.
 
-No flags are defined yet; each feature's gate adds its own.
+Flags so far: `map` (off; UI-only). Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
 
 ## State and data flow
 
@@ -137,8 +137,9 @@ How they work:
 - A test that needs specific API data replaces the stub: `fetch.mockImplementation(async (url) => ...)`. Components that use `axios` need `vi.mock('axios')` in that test file.
 - Tests import `describe`, `test`, `expect` and `vi` from `vitest` (no globals), so ESLint needs no extra configuration.
 
-**Current coverage (9 tests):**
+**Current coverage (12 tests):**
 - `tests/smoke.test.jsx`: the app renders its navbar and home page signed out, and shows the signed-in links and Logout when signed in.
+- `tests/flag-map.test.jsx`: the `map` flag ships off; off, `/map` shows the unavailable page and the navbar still works; on, the page renders (with `LocationPage` mocked).
 - `tests/featureFlags.test.jsx`: `isEnabled` (on, off, unknown name throws in development and logs in a production build) and `FeatureGate` (children while on; the unavailable page with a link home for a page, nothing or the fallback otherwise, while off). Tests switch a flag by setting it on the exported `featureFlags` object and restoring it afterwards.
 
 What they can't catch: anything about the real backend, real Firebase, CSS/layout (CSS isn't loaded), or third-party widgets. Nothing runs in a real browser.
@@ -178,7 +179,7 @@ These were in place before 2026-10-22, and their rationale wasn't written down. 
 - **Decision:** All map code and dependencies stay as they are. The Google variables (`VITE_GOOGLE_MAPS_API_KEY`, `VITE_GOOGLE_MAP_ID`, `VITE_GOOGLE_GEOCODE_API_KEY`) are removed from local `.env` files. The map is a **stretch feature**; when it's picked up, it should move to a free, no-card provider (see [CONTEXT.md](../CONTEXT.md#map--geocoding-alternatives-if-a-map-comes-back)) and get a new decision entry.
 - **Rationale:** Without keys, nothing can bill, and the work already done on the page is kept for reuse.
 - **Consequences / trade-offs:**
-  - `/map` is still reachable by URL, but without keys the map and geocoding just fail to load. Remove the route or show a placeholder if that becomes a problem.
+  - `/map` is still reachable by URL, but without keys the map and geocoding just fail to load. Remove the route or show a placeholder if that becomes a problem. *Update 2026-11-17:* the route is now behind the `map` feature flag, which ships off, so it shows the "Temporarily unavailable" page instead (FEATURE_FLAGS.md). This decision otherwise stands.
   - **Removing keys from `.env` doesn't revoke them.** They must be deleted in the Google Cloud project that owns them, since they were public in the deployed bundle.
   - Lessons for the rebuild: geocode once and store `latitude`/`longitude` on `Opportunity`, cap usage, and never ship unrestricted paid keys in `VITE_` variables.
   - City autocomplete (`CitySearch`) uses LocationIQ and is unaffected.
