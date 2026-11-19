@@ -1,6 +1,8 @@
 // Badge rules. Badges are only ever awarded here, by the server, as a side effect of the
 // action that earns them (D-API-006). Names must match the Badge rows created by seed.js.
 
+const { isEnabled } = require("../config/featureFlags");
+
 const BADGES = {
   NEWCOMER: "Newcomer Badge", // finished onboarding
   FIRST_STEPS: "First Steps", // first application
@@ -30,9 +32,10 @@ function badgesForApplication({ user, opportunity, usersAhead }) {
 
 // Connects the named badges the user doesn't have yet and returns only the newly
 // awarded Badge rows (for the UI's "badge earned" modal). Unknown names are skipped.
-// `db` is the Prisma client or a transaction client.
+// `db` is the Prisma client or a transaction client. While the `badges` flag is off it awards
+// nothing, so apply, onboarding and friend accept carry on without badges (FEATURE_FLAGS.md).
 async function awardBadges(db, userId, names) {
-  if (names.length === 0) return [];
+  if (names.length === 0 || !isEnabled("badges")) return [];
 
   const owned = await db.user.findUnique({
     where: { id: userId },

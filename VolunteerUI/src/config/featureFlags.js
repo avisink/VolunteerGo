@@ -8,6 +8,8 @@ export const featureFlags = {
   confirmationEmail: true,
   // Friends: requests, friend list, /friends/* endpoints. Off: the Friends tab, buttons and leaderboard filter are hidden.
   friends: true,
+  // Badges: /badges endpoints and awarding badges. Off: nothing is awarded and badge sections are hidden.
+  badges: true,
 };
 
 // Always ask through this helper. An unknown name is a typo: it throws in development
