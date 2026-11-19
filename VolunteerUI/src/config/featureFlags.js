@@ -4,6 +4,8 @@
 export const featureFlags = {
   // /map page (LocationPage). Ships off: no maps API key and known problems (D-UI-001).
   map: false,
+  // Application confirmation email (POST /users/send-confirmation-email). Off: applying still works, no email.
+  confirmationEmail: true,
 };
 
 // Always ask through this helper. An unknown name is a typo: it throws in development

@@ -25,6 +25,7 @@ Each service has its own copy of the same list. VolunteerAPI's is the source of 
 | Flag | Default | What turning it off does | Depends on / affects |
 |---|---|---|---|
 | `map` | **off** | `/map` shows "Temporarily unavailable" instead of the map page. No backend endpoints. The nav link was already commented out. | Nothing depends on it. Ships off because the page has no maps API key and has had problems (VolunteerUI D-UI-001). |
+| `confirmationEmail` | on | `POST /users/send-confirmation-email` answers 503, and `ApplyModal` skips the email request after applying. | Depends on applying. Applying (points, badges, the applied list) works the same with it off; users just get no email. |
 
 ## Never gated (core)
 

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/userController');
 const { verifyFirebaseToken, requireSelf } = require('../middleware/auth');
+const { requireFeature } = require('../middleware/featureGate');
 
 // Writes need a Firebase token; `:id` writes must be the caller's own account (D-API-007).
 const self = [verifyFirebaseToken, requireSelf];
@@ -28,7 +29,7 @@ router.delete("/:id", self, controller.deleteUser); // delete user
 
 router.post("/onboarding", verifyFirebaseToken, controller.onboarding); // login user
 
-router.post('/send-confirmation-email', verifyFirebaseToken, controller.sendApplicationConfirmation);  // send user confirmation email
+router.post('/send-confirmation-email', requireFeature('confirmationEmail'), verifyFirebaseToken, controller.sendApplicationConfirmation);  // send user confirmation email
 
 
 
