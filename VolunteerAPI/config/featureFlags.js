@@ -10,6 +10,8 @@ const featureFlags = {
   friends: true,
   // Badges: /badges endpoints and awarding badges. Off: nothing is awarded and badge sections are hidden.
   badges: true,
+  // Gamification: points and levels. Off: applying awards no points, and points/level displays are hidden.
+  gamification: true,
 };
 
 // Always ask through this helper. An unknown name is a typo: it throws outside

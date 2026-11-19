@@ -228,11 +228,13 @@ function ProfilePage() {
               </div>
               <div className="info-value">{age || "Unknown"}</div>
               
-              <div className="info-label">
-                <GiThreeLeaves className="icon" />
-                <span>Points</span>
-              </div>
-              <div className="info-value">{points || 0}</div>
+              <FeatureGate flag="gamification">
+                <div className="info-label">
+                  <GiThreeLeaves className="icon" />
+                  <span>Points</span>
+                </div>
+                <div className="info-value">{points || 0}</div>
+              </FeatureGate>
               
               <div className="info-label">
                 <IoCalendarSharp className="icon" />
@@ -279,7 +281,7 @@ function ProfilePage() {
                 </button>
               </FeatureGate>
             </div>
-            <ProgressBar points={points} size="normal" />
+            <FeatureGate flag="gamification"><ProgressBar points={points} size="normal" /></FeatureGate>
           </div>
           
           {/* Tab Content */}

@@ -234,6 +234,7 @@ useEffect(() => {
         </div>
       </div>
 
+      <FeatureGate flag="gamification">
       <div className="public-profile-stats">
         <div className="public-profile-stat-item">
           <GiThreeLeaves className="public-profile-icon" />
@@ -244,6 +245,7 @@ useEffect(() => {
           <span>Level: {level || "1"}</span>
         </div>
       </div>
+      </FeatureGate>
 
       <div className="public-profile-details">
         <div className="public-profile-section">

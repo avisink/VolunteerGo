@@ -15,6 +15,8 @@ FEATURE_FLAGS = {
     "friends": True,
     # Badges: /badges endpoints and awarding badges. Off: nothing is awarded and badge sections are hidden.
     "badges": True,
+    # Gamification: points and levels. Off: applying awards no points, and points/level displays are hidden.
+    "gamification": True,
 }
 
 
