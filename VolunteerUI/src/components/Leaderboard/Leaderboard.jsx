@@ -4,6 +4,8 @@ import { useAuth } from "../../hooks/useAuth";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import FeatureGate from "../FeatureGate/FeatureGate";
+import { isEnabled } from "../../config/featureFlags";
 import { FaRubleSign } from "react-icons/fa6";
 
 function Leaderboard() {
@@ -26,7 +28,7 @@ function Leaderboard() {
               throw error;
           }
         };
-        if (!token) return;
+        if (!token || !isEnabled("friends")) return; // no friends list while the flag is off
         const fetchFriendsData = async () => {
           try {
             const friendsData = await getFriendsAPI(token);
@@ -135,9 +137,11 @@ function Leaderboard() {
         Community
         </button>
 
+        <FeatureGate flag="friends">
         <button className={`mode-btn ${mode === "friends" ? "active" : ""}`}
         onClick={() => setMode("friends")}
         >Friends</button>
+        </FeatureGate>
 
       </div>
       <div className="list">

@@ -99,7 +99,7 @@ Any gateable feature can be switched off in code while the rest of the app keeps
 - `<FeatureGate flag="flagName">` wraps a nav link, button, tab or other entry point: while the flag is off it renders nothing, or its `fallback` prop.
 - Code that only *uses* another feature checks `isEnabled` and skips that piece, and should treat a `503` from the API or search service the same way.
 
-Flags so far: `map` (off; UI-only), `confirmationEmail`. Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
+Flags so far: `map` (off; UI-only), `confirmationEmail`, `friends`. Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
 
 ## State and data flow
 
@@ -137,8 +137,9 @@ How they work:
 - A test that needs specific API data replaces the stub: `fetch.mockImplementation(async (url) => ...)`. Components that use `axios` need `vi.mock('axios')` in that test file.
 - Tests import `describe`, `test`, `expect` and `vi` from `vitest` (no globals), so ESLint needs no extra configuration.
 
-**Current coverage (15 tests):**
+**Current coverage (22 tests):**
 - `tests/smoke.test.jsx`: the app renders its navbar and home page signed out, and shows the signed-in links and Logout when signed in.
+- `tests/flag-friends.test.jsx`: on and off, for `/profile` (Friends tab), `/leaderboard` (Friends filter, `/friends` requests) and `/public-profile/:userId` (add-friend button, `/friends` requests). Mocks `axios`, which these pages use.
 - `tests/flag-confirmationEmail.test.jsx`: renders `ApplyModal` with the real providers; with the flag off, submitting still applies, shows no error and never calls the email endpoint; with it on, it does.
 - `tests/flag-map.test.jsx`: the `map` flag ships off; off, `/map` shows the unavailable page and the navbar still works; on, the page renders (with `LocationPage` mocked).
 - `tests/featureFlags.test.jsx`: `isEnabled` (on, off, unknown name throws in development and logs in a production build) and `FeatureGate` (children while on; the unavailable page with a link home for a page, nothing or the fallback otherwise, while off). Tests switch a flag by setting it on the exported `featureFlags` object and restoring it afterwards.

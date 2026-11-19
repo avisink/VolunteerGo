@@ -11,6 +11,8 @@ FEATURE_FLAGS = {
     "map": False,
     # Application confirmation email (POST /users/send-confirmation-email). Off: applying still works, no email.
     "confirmationEmail": True,
+    # Friends: requests, friend list, /friends/* endpoints. Off: the Friends tab, buttons and leaderboard filter are hidden.
+    "friends": True,
 }
 
 

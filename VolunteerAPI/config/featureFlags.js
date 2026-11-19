@@ -6,6 +6,8 @@ const featureFlags = {
   map: false,
   // Application confirmation email (POST /users/send-confirmation-email). Off: applying still works, no email.
   confirmationEmail: true,
+  // Friends: requests, friend list, /friends/* endpoints. Off: the Friends tab, buttons and leaderboard filter are hidden.
+  friends: true,
 };
 
 // Always ask through this helper. An unknown name is a typo: it throws outside
