@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import ProgressBar from "../ProgressBar/ProgressBar";
 import axios from "axios";
 import FriendsSection from "../FriendsPage/FriendsPage";
+import FeatureGate from "../FeatureGate/FeatureGate";
 
 function ProfilePage() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -259,12 +260,14 @@ function ProfilePage() {
               >
                 Overview
               </button>
-              <button
-                className={`nav-tab ${activeTab === 'friends' ? 'active' : ''}`}
-                onClick={() => setActiveTab('friends')}
-              >
-                Friends
-              </button>
+              <FeatureGate flag="friends">
+                <button
+                  className={`nav-tab ${activeTab === 'friends' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('friends')}
+                >
+                  Friends
+                </button>
+              </FeatureGate>
               <button
                 className={`nav-tab ${activeTab === 'badges' ? 'active' : ''}`}
                 onClick={() => setActiveTab('badges')}
@@ -278,7 +281,7 @@ function ProfilePage() {
           {/* Tab Content */}
           <div className="tab-content">
             {activeTab === 'overview' && renderOverview()}
-            {activeTab === 'friends' && <FriendsSection user={user} profile={profile} token={token} />}
+            {activeTab === 'friends' && <FeatureGate flag="friends"><FriendsSection user={user} profile={profile} token={token} /></FeatureGate>}
             {activeTab === 'badges' && renderBadges()}
           </div>
         </div>

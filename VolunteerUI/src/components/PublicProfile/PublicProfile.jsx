@@ -6,6 +6,7 @@ import { GiThreeLeaves } from "react-icons/gi";
 import { FaBarsProgress } from "react-icons/fa6";
 import { FaUserPlus, FaCheck, FaHourglassHalf } from "react-icons/fa";
 import { useAuth } from "../../hooks/useAuth";
+import { isEnabled } from "../../config/featureFlags";
 
 function PublicProfile() {
   const { userId } = useParams();
@@ -40,7 +41,7 @@ function PublicProfile() {
 
 useEffect(() => {
   const fetchFriendStatus = async () => {
-    if (!isSignedIn || !user || !token) return;
+    if (!isSignedIn || !user || !token || !isEnabled("friends")) return;
     try {
       const friendsRes = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/friends/list`,
@@ -78,7 +79,7 @@ useEffect(() => {
   fetchFriendStatus();
 }, [userId, isSignedIn, user, token]);
 
-  const showFriendButton = isSignedIn && user?.uid !== userId;
+  const showFriendButton = isEnabled("friends") && isSignedIn && user?.uid !== userId;
 
 
   const sendFriendRequest = async (receiverId, token) => {

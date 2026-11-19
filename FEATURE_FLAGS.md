@@ -26,6 +26,7 @@ Each service has its own copy of the same list. VolunteerAPI's is the source of 
 |---|---|---|---|
 | `map` | **off** | `/map` shows "Temporarily unavailable" instead of the map page. No backend endpoints. The nav link was already commented out. | Nothing depends on it. Ships off because the page has no maps API key and has had problems (VolunteerUI D-UI-001). |
 | `confirmationEmail` | on | `POST /users/send-confirmation-email` answers 503, and `ApplyModal` skips the email request after applying. | Depends on applying. Applying (points, badges, the applied list) works the same with it off; users just get no email. |
+| `friends` | on | All eight `/friends/*` endpoints answer 503. The UI hides the Friends tab on `/profile`, the Friends filter on `/leaderboard`, and the add/accept friend button on public profiles, and stops calling `/friends`. | The leaderboard and public profiles keep working without it (community ranking only, no friend button). The Volunteer Connector badge is only earned by accepting a friend request, so nobody can earn it while friends is off. |
 
 ## Never gated (core)
 
