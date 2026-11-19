@@ -10,6 +10,7 @@ import { getPexelsImage } from "../../utils/getImage";
 import PopupPill from '../PopupPill/PopupPill';
 import { BsBookmarkFill } from "react-icons/bs";
 import { BsBookmark } from "react-icons/bs";
+import FeatureGate from "../FeatureGate/FeatureGate";
 
 const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -294,6 +295,7 @@ const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) =
               { isSignedIn?  handleApplyClick(opportunity) : setShowLogin(true)
               }}
               >I Want to Help</button>
+            <FeatureGate flag="savedOpportunities">
             <button
               className="save-btn"
               onClick={(e) => 
@@ -308,6 +310,7 @@ const DraggableCard = ({ opportunity, onSwipeLeft, onSwipeRight, formatDate }) =
                   <BsBookmark className="save-icon" />
                 )}
             </button>
+            </FeatureGate>
         </div>
       </div>
     </div>

@@ -12,6 +12,8 @@ const featureFlags = {
   badges: true,
   // Gamification: points and levels. Off: applying awards no points, and points/level displays are hidden.
   gamification: true,
+  // Saved opportunities: bookmarking and the /saved page. Off: save buttons and the Saved link are hidden.
+  savedOpportunities: true,
 };
 
 // Always ask through this helper. An unknown name is a typo: it throws outside

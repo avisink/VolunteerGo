@@ -139,7 +139,7 @@ function Navbar() {
           <NavLink to="/" className="nav-link">Home</NavLink>
           <NavLink to="/search" className="nav-link">Search</NavLink>
           {isLoaded && isSignedIn && (
-            <NavLink to="/saved" className="nav-link">Saved</NavLink>
+            <FeatureGate flag="savedOpportunities"><NavLink to="/saved" className="nav-link">Saved</NavLink></FeatureGate>
           )}
           {isLoaded && isSignedIn && (
             <NavLink to="/leaderboard" className="nav-link">Leaderboard</NavLink>
@@ -185,7 +185,7 @@ function Navbar() {
         <NavLink to="/" className="nav-link">Home</NavLink>
         <NavLink to="/search" className="nav-link">Search</NavLink>
         {isLoaded && isSignedIn && (
-          <NavLink to="/saved" className="nav-link">Saved</NavLink>
+          <FeatureGate flag="savedOpportunities"><NavLink to="/saved" className="nav-link">Saved</NavLink></FeatureGate>
         )}
         {isLoaded && isSignedIn && (
           <NavLink to="/leaderboard" className="nav-link">Leaderboard</NavLink>

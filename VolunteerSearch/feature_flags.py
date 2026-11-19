@@ -17,6 +17,8 @@ FEATURE_FLAGS = {
     "badges": True,
     # Gamification: points and levels. Off: applying awards no points, and points/level displays are hidden.
     "gamification": True,
+    # Saved opportunities: bookmarking and the /saved page. Off: save buttons and the Saved link are hidden.
+    "savedOpportunities": True,
 }
 
 

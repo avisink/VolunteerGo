@@ -85,7 +85,7 @@ All routes are defined in one flat list in `components/App/App.jsx`. Each one po
 | `/profile` | `ProfilePage` | Your profile, badges, friends (`FriendsPage` is rendered inside it) |
 | `/public-profile/:userId` | `PublicProfile` | Another user's profile |
 | `/leaderboard` | `Leaderboard` | Points ranking |
-| `/saved` | `SavedPage` | Saved opportunities |
+| `/saved` | `SavedPage` | Saved opportunities. Behind the `savedOpportunities` flag |
 | `/opportunity/:id` | `OpportunityPage` | Opportunity detail and apply |
 | `/map` | `LocationPage` | Map view. Stretch feature, not linked in the nav, no API keys (D-UI-001). Behind the `map` flag, which ships **off**, so the route shows "Temporarily unavailable" |
 
@@ -99,7 +99,7 @@ Any gateable feature can be switched off in code while the rest of the app keeps
 - `<FeatureGate flag="flagName">` wraps a nav link, button, tab or other entry point: while the flag is off it renders nothing, or its `fallback` prop.
 - Code that only *uses* another feature checks `isEnabled` and skips that piece, and should treat a `503` from the API or search service the same way.
 
-Flags so far: `map` (off; UI-only), `confirmationEmail`, `friends`, `badges`, `gamification`. Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
+Flags so far: `map` (off; UI-only), `confirmationEmail`, `friends`, `badges`, `gamification`, `savedOpportunities`. Every flag, what it turns off and how to toggle it: [FEATURE_FLAGS.md](../FEATURE_FLAGS.md).
 
 ## State and data flow
 
@@ -137,8 +137,9 @@ How they work:
 - A test that needs specific API data replaces the stub: `fetch.mockImplementation(async (url) => ...)`. Components that use `axios` need `vi.mock('axios')` in that test file.
 - Tests import `describe`, `test`, `expect` and `vi` from `vitest` (no globals), so ESLint needs no extra configuration.
 
-**Current coverage (32 tests):**
+**Current coverage (37 tests):**
 - `tests/smoke.test.jsx`: the app renders its navbar and home page signed out, and shows the signed-in links and Logout when signed in.
+- `tests/flag-savedOpportunities.test.jsx`: on and off, for `/search` (bookmark buttons, Saved nav link, opportunities still listed) and `/saved` (page vs unavailable page). Seeds the `opportunities` `localStorage` cache that `OpportunityContext` reads.
 - `tests/flag-gamification.test.jsx`: on and off, for the navbar and `/profile` (points and progress bars) and `/public-profile/:userId` (points and level).
 - `tests/flag-badges.test.jsx`: on and off, for `/profile` (Badges tab, `/badges` request) and `/public-profile/:userId` (badges section).
 - `tests/flag-friends.test.jsx`: on and off, for `/profile` (Friends tab), `/leaderboard` (Friends filter, `/friends` requests) and `/public-profile/:userId` (add-friend button, `/friends` requests). Mocks `axios`, which these pages use.

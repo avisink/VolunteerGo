@@ -5,6 +5,7 @@ import { useAuth } from "../../hooks/useAuth";
 import ApplyModal from '../ApplyModal/ApplyModal';
 import { BsBookmarkFill } from "react-icons/bs";
 import { BsBookmark } from "react-icons/bs";
+import FeatureGate from "../FeatureGate/FeatureGate";
 import { useProfile } from '../../contexts/ProfileContext';
 import { useOpportunity } from '../../contexts/OpportunityContext'; 
 import PopupPill from '../PopupPill/PopupPill';
@@ -323,6 +324,7 @@ useEffect(() => {
                         I Want to Help{" "}
                       </button>
                     )}
+                    <FeatureGate flag="savedOpportunities">
                     <button
                       className={`save-btn ${
                         savingOppId === opportunity.id ? "loading" : ""
@@ -340,6 +342,7 @@ useEffect(() => {
                         <BsBookmark className="save-icon" />
                       )}
                     </button>
+                    </FeatureGate>
                   </div>
                 </div>
               ))}
