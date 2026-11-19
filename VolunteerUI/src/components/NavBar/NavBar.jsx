@@ -6,6 +6,7 @@ import { auth } from "../../firebase";
 import { useProfile } from "../../contexts/ProfileContext";
 import { useEffect, useState } from 'react';
 import ProgressBar from '../ProgressBar/ProgressBar';
+import FeatureGate from '../FeatureGate/FeatureGate';
 
 function Navbar() {
   const navigate = useNavigate();
@@ -193,7 +194,7 @@ function Navbar() {
       </div>
       <div className="navbar-right">
         {isLoaded && isSignedIn && (
-          <>
+          <FeatureGate flag="gamification">
           <div className="user-points">
           <div className="gif-media">
             {showGif ? 
@@ -204,7 +205,7 @@ function Navbar() {
         </div>
         </div>
         <ProgressBar points={points} size="small"/>
-        </>
+        </FeatureGate>
         )}
         <div className="profile-menu">
       </div>

@@ -1,6 +1,8 @@
 // Points and level rules. The server is the only place these are applied (D-API-005);
 // VolunteerUI's ProgressBar.getLevelData uses the same curve for display only.
 
+const { isEnabled } = require("../config/featureFlags");
+
 // Awarded when an opportunity has no point value of its own (Opportunity.points defaults to 0).
 const DEFAULT_APPLICATION_POINTS = 10;
 
@@ -22,7 +24,9 @@ function getLevelFromPoints(points) {
   return level;
 }
 
+// 0 while the `gamification` flag is off: applying still works but earns nothing (FEATURE_FLAGS.md).
 function pointsForOpportunity(opportunity) {
+  if (!isEnabled("gamification")) return 0;
   return opportunity.points > 0 ? opportunity.points : DEFAULT_APPLICATION_POINTS;
 }
 
