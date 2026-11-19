@@ -13,6 +13,8 @@ FEATURE_FLAGS = {
     "confirmationEmail": True,
     # Friends: requests, friend list, /friends/* endpoints. Off: the Friends tab, buttons and leaderboard filter are hidden.
     "friends": True,
+    # Badges: /badges endpoints and awarding badges. Off: nothing is awarded and badge sections are hidden.
+    "badges": True,
 }
 
 

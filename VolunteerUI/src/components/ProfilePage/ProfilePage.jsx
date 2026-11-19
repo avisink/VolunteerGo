@@ -16,6 +16,7 @@ import ProgressBar from "../ProgressBar/ProgressBar";
 import axios from "axios";
 import FriendsSection from "../FriendsPage/FriendsPage";
 import FeatureGate from "../FeatureGate/FeatureGate";
+import { isEnabled } from "../../config/featureFlags";
 
 function ProfilePage() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -29,7 +30,8 @@ function ProfilePage() {
   const [allBadges, setAllBadges] = useState([]);
 
   useEffect(() => {
-    // Fetch all badges
+    // Fetch all badges (not while the badges flag is off)
+    if (!isEnabled("badges")) return;
     axios.get(`${import.meta.env.VITE_API_BASE_URL}/badges`)
       .then(res => setAllBadges(res.data))
       .catch(err => console.error("Error fetching all badges:", err));
@@ -268,12 +270,14 @@ function ProfilePage() {
                   Friends
                 </button>
               </FeatureGate>
-              <button
-                className={`nav-tab ${activeTab === 'badges' ? 'active' : ''}`}
-                onClick={() => setActiveTab('badges')}
-              >
-                Badges
-              </button>
+              <FeatureGate flag="badges">
+                <button
+                  className={`nav-tab ${activeTab === 'badges' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('badges')}
+                >
+                  Badges
+                </button>
+              </FeatureGate>
             </div>
             <ProgressBar points={points} size="normal" />
           </div>
@@ -282,7 +286,7 @@ function ProfilePage() {
           <div className="tab-content">
             {activeTab === 'overview' && renderOverview()}
             {activeTab === 'friends' && <FeatureGate flag="friends"><FriendsSection user={user} profile={profile} token={token} /></FeatureGate>}
-            {activeTab === 'badges' && renderBadges()}
+            {activeTab === 'badges' && <FeatureGate flag="badges">{renderBadges()}</FeatureGate>}
           </div>
         </div>
       </div>

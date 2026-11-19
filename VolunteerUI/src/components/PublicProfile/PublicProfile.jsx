@@ -7,6 +7,7 @@ import { FaBarsProgress } from "react-icons/fa6";
 import { FaUserPlus, FaCheck, FaHourglassHalf } from "react-icons/fa";
 import { useAuth } from "../../hooks/useAuth";
 import { isEnabled } from "../../config/featureFlags";
+import FeatureGate from "../FeatureGate/FeatureGate";
 
 function PublicProfile() {
   const { userId } = useParams();
@@ -275,6 +276,7 @@ useEffect(() => {
           </div>
         </div>
 
+        <FeatureGate flag="badges">
         <div className="public-profile-section">
           <h3>Badges Earned</h3>
           <div className="public-profile-badges-grid">
@@ -294,6 +296,7 @@ useEffect(() => {
             )}
           </div>
         </div>
+        </FeatureGate>
       </div>
     </div>
     </div>
